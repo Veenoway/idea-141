@@ -8,6 +8,7 @@ import {
   StochasticChart,
 } from "@/components/charts";
 import { ReplayBar } from "@/components/ReplayBar";
+import { isPairStrategy, STRATEGY_META } from "@/lib/constants";
 import type { BacktestResult, Candle, StrategyParams, StrategyType } from "@/types";
 import { useEffect, useRef, useState } from "react";
 
@@ -47,6 +48,8 @@ export function ChartPanel({
   canReplay,
   barIntervalMs,
 }: Props) {
+  const strategyLabel =
+    STRATEGY_META.find((s) => s.id === strategy)?.label ?? strategy;
   const [replayBarMounted, setReplayBarMounted] = useState(showReplay);
   const [replayBarPhase, setReplayBarPhase] = useState<"idle" | "enter" | "exit">("idle");
   const [replayModePhase, setReplayModePhase] = useState<"idle" | "enter" | "exit">("idle");
@@ -95,7 +98,9 @@ export function ChartPanel({
   return (
     <section className="bt-main-panel p-3 flex flex-col shrink-0">
       <div className="flex items-center justify-between mb-3 shrink-0">
-        <h2 className="text-sm font-medium text-[var(--bt-label)]">Adding a text to fill the space {":)"}</h2>
+        <h2 className="text-sm font-medium text-[var(--bt-label)]">
+          {isPairStrategy(strategy) ? `${strategyLabel} · base ÷ quote` : strategyLabel}
+        </h2>
         {canReplay && (
           <Button
             variant={showReplay ? "secondary" : "primary"}

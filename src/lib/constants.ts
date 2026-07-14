@@ -33,7 +33,7 @@ export const MARKETS: MarketOption[] = [
   { id: 20, name: "ETH", priceDecimals: 2, mobulaAsset: "Ethereum" },
   { id: 31, name: "SOL", priceDecimals: 3, mobulaAsset: "Solana" },
   { id: 10, name: "MON", priceDecimals: 6, mobulaAsset: "Monad" },
-  { id: 40, name: "HYPE", priceDecimals: 3, mobulaAsset: "Hyperliquid" },
+  { id: 40, name: "HYPE", priceDecimals: 4, mobulaAsset: "Hyperliquid" },
   { id: 50, name: "ZEC", priceDecimals: 2, mobulaAsset: "Zcash" },
 ];
 
@@ -53,6 +53,9 @@ export const DEFAULT_STRATEGY_PARAMS = {
   stochDPeriod: 3,
   stochOversold: 20,
   stochOverbought: 80,
+  pairZPeriod: 20,
+  pairZEntry: 2,
+  pairZExit: 0.5,
 };
 
 export const STRATEGY_META: {
@@ -67,6 +70,26 @@ export const STRATEGY_META: {
   { id: "bollinger", label: "Bollinger Bands", desc: "Mean reversion on the bands" },
   { id: "breakout", label: "Breakout", desc: "Donchian channel breakout (Turtle)" },
   { id: "stochastic", label: "Stochastic", desc: "%K / %D — classic forex & crypto" },
+  {
+    id: "pair_mean_reversion",
+    label: "Pair Mean Reversion",
+    desc: "Z-score on BTC/ETH, BTC/SOL ratio — fade extremes",
+  },
+  {
+    id: "pair_momentum",
+    label: "Pair Momentum",
+    desc: "EMA crossover on pair ratio — ride relative strength",
+  },
 ];
+
+export const PAIR_PRESETS = [
+  { label: "BTC/ETH", baseId: 1, quoteId: 20 },
+  { label: "BTC/SOL", baseId: 1, quoteId: 31 },
+  { label: "ETH/SOL", baseId: 20, quoteId: 31 },
+] as const;
+
+export function isPairStrategy(strategy: StrategyType): boolean {
+  return strategy === "pair_mean_reversion" || strategy === "pair_momentum";
+}
 
 export const MAX_CANDLES = 1024;

@@ -35,7 +35,9 @@ export type StrategyType =
   | "macd"
   | "bollinger"
   | "breakout"
-  | "stochastic";
+  | "stochastic"
+  | "pair_mean_reversion"
+  | "pair_momentum";
 
 export interface BacktestConfig {
   initialCapital: number;
@@ -72,6 +74,9 @@ export interface StrategyParams {
   stochDPeriod: number;
   stochOversold: number;
   stochOverbought: number;
+  pairZPeriod: number;
+  pairZEntry: number;
+  pairZExit: number;
 }
 
 export interface BacktestMetrics {
@@ -116,6 +121,12 @@ export interface CandleFetchResult {
   source: DataSource;
   market: string;
   funding?: FundingInfo;
+  pair?: {
+    baseMarket: string;
+    quoteMarket: string;
+    baseMarketId: number;
+    quoteMarketId: number;
+  };
 }
 
 export interface ReplayEvent {

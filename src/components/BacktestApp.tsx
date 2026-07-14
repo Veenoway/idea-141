@@ -1,6 +1,6 @@
 "use client";
 
-import { DEFAULT_STRATEGY_PARAMS, TIMEFRAME_SECONDS } from "@/lib/constants";
+import { DEFAULT_STRATEGY_PARAMS, TIMEFRAME_SECONDS, isPairStrategy, MARKETS } from "@/lib/constants";
 import {
   buildCandlesQuery,
   defaultPeriodConfig,
@@ -15,10 +15,11 @@ import type {
   Timeframe,
 } from "@/types";
 import { runBacktest } from "@/lib/backtest/engine";
+import { alignPairCandles } from "@/lib/backtest/pair-utils";
+import { runPairBacktest } from "@/lib/backtest/pair-engine";
 import { computeReplayMetrics, findReplayStartIndex, tradesVisibleAt, replayTime } from "@/lib/replay-utils";
 import { commitBacktestOnchain, type CommitOnchainInput } from "@/lib/commit-onchain";
 import { explorerTxUrl } from "@/lib/chain";
-import { MARKETS } from "@/lib/constants";
 import { useWallet } from "@/hooks/useWallet";
 import { ToastProvider, useToast } from "@/hooks/useToast";
 import type { CommitStatus } from "@/types/onchain";
@@ -63,6 +64,7 @@ function BacktestAppInner() {
   const wallet = useWallet();
   const toast = useToast();
   const [marketId, setMarketId] = useState(1);
+  const [pairMarketId, setPairMarketId] = useState(20);
   const [timeframe, setTimeframe] = useState<Timeframe>("1h");
   const [period, setPeriod] = useState<PeriodConfig>(defaultPeriodConfig);
   const [strategy, setStrategy] = useState<StrategyType>("ema_crossover");
@@ -183,27 +185,24 @@ function BacktestAppInner() {
     setCommitStatus("idle");
 
     try {
+      const pairMode = isPairStrategy(strategy);
+      if (pairMode && pairMarketId === marketId) {
+        throw new Error("Pick two different assets for the pair (e.g. BTC / ETH).");
+      }
+
       const url = buildCandlesQuery(marketId, timeframe, period);
-      const res = await fetch(url);
-      const body = await res.json();
+      const quoteUrl = pairMode ? buildCandlesQuery(pairMarketId, timeframe, period) : null;
 
-      if (!res.ok) {
-        throw new Error(body.error ?? `Fetch failed (${res.status})`);
+      const fetches = [fetch(url), ...(quoteUrl ? [fetch(quoteUrl)] : [])] as const;
+      const responses = await Promise.all(fetches);
+      const bodies = await Promise.all(responses.map((r) => r.json()));
+
+      const baseRes = bodies[0];
+      if (!responses[0].ok) {
+        throw new Error(baseRes.error ?? `Fetch failed (${responses[0].status})`);
       }
 
-      const candleData: CandleFetchResult = body;
-      if (candleData.candles.length < 50) {
-        throw new Error("Not enough candle data for backtest (min 50)");
-      }
-
-      if (candleData.funding) {
-        setFeeBps(candleData.funding.takerFeeBps);
-        setFundingRateBps(candleData.funding.rateBps);
-      }
-
-      setData(candleData);
-      setLoadingPhase("computing");
-      await new Promise((r) => setTimeout(r, 30));
+      let candleData: CandleFetchResult = baseRes;
 
       const config: BacktestConfig = {
         initialCapital: capital,
@@ -217,11 +216,71 @@ function BacktestAppInner() {
         fundingRateBps: candleData.funding?.rateBps ?? fundingRateBps,
         fundingIntervalSec: candleData.funding?.intervalSec ?? 3600,
       };
-      const btResult = runBacktest(candleData.candles, config);
+
+      let btResult: BacktestResult;
+
+      if (pairMode) {
+        const quoteRes = bodies[1];
+        if (!responses[1].ok) {
+          throw new Error(quoteRes.error ?? `Quote fetch failed (${responses[1].status})`);
+        }
+
+        const baseName = MARKETS.find((m) => m.id === marketId)?.name ?? "BASE";
+        const quoteName = MARKETS.find((m) => m.id === pairMarketId)?.name ?? "QUOTE";
+        const series = alignPairCandles(baseRes.candles, quoteRes.candles);
+
+        if (series.ratio.length < 50) {
+          throw new Error("Not enough aligned pair data for backtest (min 50 bars).");
+        }
+
+        if (quoteRes.funding && !candleData.funding) {
+          config.takerFeeBps = quoteRes.funding.takerFeeBps;
+          config.fundingRateBps = quoteRes.funding.rateBps;
+          config.fundingIntervalSec = quoteRes.funding.intervalSec;
+        }
+
+        candleData = {
+          candles: series.ratio,
+          source: baseRes.source === "perpl" && quoteRes.source === "perpl" ? "perpl" : "mobula",
+          market: `${baseName}/${quoteName}`,
+          funding: candleData.funding ?? quoteRes.funding,
+          pair: {
+            baseMarket: baseName,
+            quoteMarket: quoteName,
+            baseMarketId: marketId,
+            quoteMarketId: pairMarketId,
+          },
+        };
+
+        setLoadingPhase("computing");
+        await new Promise((r) => setTimeout(r, 30));
+
+        btResult = runPairBacktest({
+          series,
+          config,
+          baseSymbol: baseName,
+          quoteSymbol: quoteName,
+        });
+      } else {
+        if (candleData.candles.length < 50) {
+          throw new Error("Not enough candle data for backtest (min 50)");
+        }
+
+        setLoadingPhase("computing");
+        await new Promise((r) => setTimeout(r, 30));
+
+        btResult = runBacktest(candleData.candles, config);
+      }
+
+      if (candleData.funding) {
+        setFeeBps(candleData.funding.takerFeeBps);
+        setFundingRateBps(candleData.funding.rateBps);
+      }
+
+      setData(candleData);
       setResult(btResult);
 
-      const market =
-        MARKETS.find((m) => m.id === marketId)?.name ?? "UNKNOWN";
+      const market = candleData.market;
 
       setLoadingPhase("committing");
       setCommitStatus("committing");
@@ -277,6 +336,7 @@ function BacktestAppInner() {
   }, [
     wallet.address,
     marketId,
+    pairMarketId,
     timeframe,
     period,
     strategy,
@@ -377,6 +437,12 @@ function BacktestAppInner() {
       <RightDrawer
         marketId={marketId}
         onMarketChange={setMarketId}
+        pairMarketId={pairMarketId}
+        onPairMarketChange={setPairMarketId}
+        onApplyPairPreset={(baseId, quoteId) => {
+          setMarketId(baseId);
+          setPairMarketId(quoteId);
+        }}
         timeframe={timeframe}
         onTimeframeChange={setTimeframe}
         period={period}

@@ -36,6 +36,10 @@ export function getStrategyWarmup(config: BacktestConfig): number {
       return p.breakoutPeriod + 2;
     case "stochastic":
       return p.stochKPeriod + p.stochDPeriod + 2;
+    case "pair_mean_reversion":
+      return p.pairZPeriod + 2;
+    case "pair_momentum":
+      return Math.max(p.fastPeriod, p.slowPeriod) + 2;
     default:
       return 30;
   }

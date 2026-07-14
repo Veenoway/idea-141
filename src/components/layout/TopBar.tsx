@@ -16,7 +16,8 @@ interface Props {
 }
 
 export function TopBar({ marketId, timeframe, period, data, candleCount }: Props) {
-  const market = MARKETS.find((m) => m.id === marketId)?.name ?? "—";
+  const market = data?.market ?? MARKETS.find((m) => m.id === marketId)?.name ?? "—";
+  const tradeSymbol = data?.pair?.baseMarket ?? market.split("/")[0] ?? market;
   const { days } = resolvePeriodMs(period);
   const periodLabel =
     period.mode === "days"
@@ -34,9 +35,19 @@ export function TopBar({ marketId, timeframe, period, data, candleCount }: Props
         <div className="hidden sm:block w-px h-10 bg-white/[0.06] shrink-0 ml-5" aria-hidden />
 
         <MetaItem
-          label="Market"
+          label={data?.pair ? "Pair" : "Market"}
           value={market}
-          icon={<MarketIcon symbol={market} size={16} />}
+          icon={
+            data?.pair ? (
+              <span className="flex items-center gap-0.5">
+                <MarketIcon symbol={data.pair.baseMarket} size={14} />
+                <span className="text-[10px] text-[var(--bt-muted)]">/</span>
+                <MarketIcon symbol={data.pair.quoteMarket} size={14} />
+              </span>
+            ) : (
+              <MarketIcon symbol={market} size={16} />
+            )
+          }
         />
         <MetaDivider />
         <MetaItem label="Timeframe" value={timeframe.toUpperCase()} />
@@ -59,12 +70,12 @@ export function TopBar({ marketId, timeframe, period, data, candleCount }: Props
         )}
 
         <a
-          href={perplTradeUrl(market)}
+          href={perplTradeUrl(tradeSymbol)}
           target="_blank"
           rel="noopener noreferrer"
           className="ml-auto shrink-0 bt-btn bt-btn-primary !w-auto !py-1.5 !px-3 !text-xs no-underline"
         >
-          Trade {market} on Perpl ↗
+          Trade {tradeSymbol} on Perpl ↗
         </a>
       </div>
     </header>

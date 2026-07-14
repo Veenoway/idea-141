@@ -1,6 +1,6 @@
 "use client";
 
-import { MARKETS, STRATEGY_META } from "@/lib/constants";
+import { MARKETS, STRATEGY_META, PAIR_PRESETS, isPairStrategy } from "@/lib/constants";
 import { MarketIcon } from "@/components/MarketIcon";
 import { PeriodSelector } from "@/components/PeriodSelector";
 import { OnchainTab } from "@/components/layout/OnchainTab";
@@ -8,6 +8,7 @@ import {
   Accordion,
   AccordionGroup,
   Button,
+  Chip,
   NumInput,
   SegmentedControl,
   SelectMenu,
@@ -26,6 +27,9 @@ type DrawerTab = "setup" | "onchain";
 interface Props {
   marketId: number;
   onMarketChange: (id: number) => void;
+  pairMarketId: number;
+  onPairMarketChange: (id: number) => void;
+  onApplyPairPreset: (baseId: number, quoteId: number) => void;
   timeframe: Timeframe;
   onTimeframeChange: (tf: Timeframe) => void;
   period: PeriodConfig;
@@ -68,6 +72,8 @@ export function RightDrawer(props: Props) {
   const strategyLabel =
     STRATEGY_META.find((s) => s.id === props.strategy)?.label ?? props.strategy;
   const marketName = MARKETS.find((m) => m.id === props.marketId)?.name ?? "—";
+  const pairMode = isPairStrategy(props.strategy);
+  const quoteName = MARKETS.find((m) => m.id === props.pairMarketId)?.name ?? "—";
   const { days } = resolvePeriodMs(props.period);
   const periodSummary =
     props.period.mode === "days"
@@ -75,8 +81,11 @@ export function RightDrawer(props: Props) {
       : `${props.period.fromDate} → ${props.period.toDate}`;
 
   const marketSummary = useMemo(
-    () => `${marketName} · ${props.timeframe.toUpperCase()}`,
-    [marketName, props.timeframe]
+    () =>
+      pairMode
+        ? `${marketName}/${quoteName} · ${props.timeframe.toUpperCase()}`
+        : `${marketName} · ${props.timeframe.toUpperCase()}`,
+    [marketName, quoteName, pairMode, props.timeframe]
   );
 
   const riskSummary = `$${props.capital.toLocaleString()} · ${props.leverage}x · SL ${props.stopLoss}%`;
@@ -145,16 +154,48 @@ export function RightDrawer(props: Props) {
 
               <Accordion title="Market" summary={marketSummary}>
                 <div className="space-y-3">
-                <SelectMenu
-                  label="Asset"
-                  value={String(props.marketId)}
-                  onChange={(v) => props.onMarketChange(Number(v))}
-                  options={MARKETS.map((m) => ({
-                    value: String(m.id),
-                    label: m.name,
-                    icon: <MarketIcon symbol={m.name} size={16} />,
-                  }))}
-                />
+                  {pairMode && (
+                    <>
+                      <p className="text-[10px] text-[var(--bt-muted)] leading-relaxed">
+                        Pair ratio = base ÷ quote. Long ratio = long base + short quote.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {PAIR_PRESETS.map((p) => (
+                          <Chip
+                            key={p.label}
+                            active={
+                              props.marketId === p.baseId && props.pairMarketId === p.quoteId
+                            }
+                            onClick={() => props.onApplyPairPreset(p.baseId, p.quoteId)}
+                          >
+                            {p.label}
+                          </Chip>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <SelectMenu
+                    label={pairMode ? "Base (numerator)" : "Asset"}
+                    value={String(props.marketId)}
+                    onChange={(v) => props.onMarketChange(Number(v))}
+                    options={MARKETS.map((m) => ({
+                      value: String(m.id),
+                      label: m.name,
+                      icon: <MarketIcon symbol={m.name} size={16} />,
+                    }))}
+                  />
+                  {pairMode && (
+                    <SelectMenu
+                      label="Quote (denominator)"
+                      value={String(props.pairMarketId)}
+                      onChange={(v) => props.onPairMarketChange(Number(v))}
+                      options={MARKETS.filter((m) => m.id !== props.marketId).map((m) => ({
+                        value: String(m.id),
+                        label: m.name,
+                        icon: <MarketIcon symbol={m.name} size={16} />,
+                      }))}
+                    />
+                  )}
                   <SelectMenu
                     label="Timeframe"
                     value={props.timeframe}
@@ -301,6 +342,23 @@ function StrategyParamsForm({
       <div className={g}>
         <NumInput label="%K" value={params.stochKPeriod} onChange={(v) => onChange({ ...params, stochKPeriod: v })} />
         <NumInput label="%D" value={params.stochDPeriod} onChange={(v) => onChange({ ...params, stochDPeriod: v })} />
+      </div>
+    );
+  }
+  if (strategy === "pair_mean_reversion") {
+    return (
+      <div className={g}>
+        <NumInput label="Z period" value={params.pairZPeriod} onChange={(v) => onChange({ ...params, pairZPeriod: v })} min={5} />
+        <NumInput label="Z entry" value={params.pairZEntry} onChange={(v) => onChange({ ...params, pairZEntry: v })} step={0.1} min={0.5} />
+        <NumInput label="Z exit" value={params.pairZExit} onChange={(v) => onChange({ ...params, pairZExit: v })} step={0.1} min={0.1} />
+      </div>
+    );
+  }
+  if (strategy === "pair_momentum") {
+    return (
+      <div className={g}>
+        <NumInput label="Fast EMA" value={params.fastPeriod} onChange={(v) => onChange({ ...params, fastPeriod: v })} />
+        <NumInput label="Slow EMA" value={params.slowPeriod} onChange={(v) => onChange({ ...params, slowPeriod: v })} />
       </div>
     );
   }
