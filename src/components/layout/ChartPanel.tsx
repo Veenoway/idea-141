@@ -16,6 +16,7 @@ interface Props {
   strategy: StrategyType;
   params: StrategyParams;
   sliceEnd?: number;
+  sliceStart?: number;
   showReplay: boolean;
   replayIndex: number;
   replayPlaying: boolean;
@@ -23,6 +24,7 @@ interface Props {
   onReplayPlayingChange: (p: boolean) => void;
   onToggleReplay: () => void;
   canReplay: boolean;
+  barIntervalMs: number;
 }
 
 export function ChartPanel({
@@ -31,6 +33,7 @@ export function ChartPanel({
   strategy,
   params,
   sliceEnd,
+  sliceStart = 0,
   showReplay,
   replayIndex,
   replayPlaying,
@@ -38,6 +41,7 @@ export function ChartPanel({
   onReplayPlayingChange,
   onToggleReplay,
   canReplay,
+  barIntervalMs,
 }: Props) {
   return (
     <section className="bt-main-panel p-3 flex flex-col shrink-0">
@@ -60,6 +64,8 @@ export function ChartPanel({
             candles={candles}
             result={result}
             index={replayIndex}
+            startIndex={sliceStart}
+            barIntervalMs={barIntervalMs}
             onIndexChange={onReplayIndexChange}
             playing={replayPlaying}
             onPlayingChange={onReplayPlayingChange}
@@ -75,11 +81,12 @@ export function ChartPanel({
                 strategy={strategy}
                 params={params}
                 sliceEnd={sliceEnd}
+                sliceStart={sliceStart}
               />
             </div>
             {strategy === "rsi" && (
               <div className="h-[100px] shrink-0 bt-chart-well">
-                <RsiChart candles={candles} period={params.rsiPeriod} sliceEnd={sliceEnd} />
+                <RsiChart candles={candles} period={params.rsiPeriod} sliceEnd={sliceEnd} sliceStart={sliceStart} />
               </div>
             )}
             {strategy === "macd" && (
@@ -90,6 +97,7 @@ export function ChartPanel({
                   slow={params.macdSlow}
                   signal={params.macdSignal}
                   sliceEnd={sliceEnd}
+                  sliceStart={sliceStart}
                 />
               </div>
             )}
@@ -100,6 +108,7 @@ export function ChartPanel({
                   kPeriod={params.stochKPeriod}
                   dPeriod={params.stochDPeriod}
                   sliceEnd={sliceEnd}
+                  sliceStart={sliceStart}
                 />
               </div>
             )}

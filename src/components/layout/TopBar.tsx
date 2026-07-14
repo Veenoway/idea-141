@@ -28,7 +28,7 @@ export function TopBar({ marketId, timeframe, period, data, candleCount }: Props
       <div className="flex items-center gap-4 flex-wrap">
         <img src="https://pbs.twimg.com/profile_images/2061689765854867456/hXUMeXnP_400x400.jpg" alt="Perp Backtest Bench" className="w-8 h-8 rounded-full" />
         <h1 className="text-lg font-bold text-white tracking-tight whitespace-nowrap shrink-0">
-          Something
+          IDEA #139
         </h1>
 
         <div className="hidden sm:block w-px h-10 bg-white/[0.06] shrink-0" aria-hidden />

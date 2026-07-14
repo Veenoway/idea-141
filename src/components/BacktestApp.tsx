@@ -1,6 +1,6 @@
 "use client";
 
-import { DEFAULT_STRATEGY_PARAMS } from "@/lib/constants";
+import { DEFAULT_STRATEGY_PARAMS, TIMEFRAME_SECONDS } from "@/lib/constants";
 import {
   buildCandlesQuery,
   defaultPeriodConfig,
@@ -15,7 +15,7 @@ import type {
   Timeframe,
 } from "@/types";
 import { runBacktest } from "@/lib/backtest/engine";
-import { computeReplayMetrics, tradesVisibleAt, replayTime } from "@/lib/replay-utils";
+import { computeReplayMetrics, findReplayStartIndex, tradesVisibleAt, replayTime } from "@/lib/replay-utils";
 import { commitBacktestOnchain, type CommitOnchainInput } from "@/lib/commit-onchain";
 import { explorerTxUrl } from "@/lib/chain";
 import { MARKETS } from "@/lib/constants";
@@ -24,6 +24,7 @@ import { ToastProvider, useToast } from "@/hooks/useToast";
 import type { CommitStatus } from "@/types/onchain";
 import { ChartPanel } from "@/components/layout/ChartPanel";
 import { EquityPanel } from "@/components/layout/EquityPanel";
+import { LandingHero } from "@/components/layout/LandingHero";
 import { RightDrawer } from "@/components/layout/RightDrawer";
 import { StatsStrip } from "@/components/layout/StatsStrip";
 import { TopBar } from "@/components/layout/TopBar";
@@ -301,15 +302,27 @@ function BacktestAppInner() {
         setReplayPlaying(false);
         return false;
       }
-      setReplayIndex(0);
+      setReplayIndex(replayStartIndex);
       setReplayPlaying(true);
       return true;
     });
   };
 
   const candles = useMemo(() => data?.candles ?? [], [data]);
+  const barIntervalMs = TIMEFRAME_SECONDS[timeframe] * 1000;
+  const replayStartIndex = useMemo(
+    () => findReplayStartIndex(candles, barIntervalMs),
+    [candles, barIntervalMs]
+  );
+  const sliceStart = showReplay ? replayStartIndex : 0;
   const sliceEnd = showReplay && result ? replayIndex : undefined;
-  const canReplay = !!result && candles.length > 0;
+  const canReplay = !!result && candles.length > replayStartIndex;
+
+  useEffect(() => {
+    if (showReplay && replayIndex < replayStartIndex) {
+      setReplayIndex(replayStartIndex);
+    }
+  }, [showReplay, replayIndex, replayStartIndex]);
 
   const displayMetrics = useMemo(() => {
     if (!result) return null;
@@ -338,26 +351,39 @@ function BacktestAppInner() {
           candleCount={candles.length}
         />
 
-        <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto perpl-scroll p-2">
-          <ChartPanel
-            candles={candles}
-            result={result}
-            strategy={strategy}
-            params={params}
-            sliceEnd={sliceEnd}
-            showReplay={showReplay}
-            replayIndex={replayIndex}
-            replayPlaying={replayPlaying}
-            onReplayIndexChange={setReplayIndex}
-            onReplayPlayingChange={setReplayPlaying}
-            onToggleReplay={toggleReplay}
-            canReplay={canReplay}
-          />
+        <div className="flex-1 min-h-0 flex flex-col p-2">
+          {!result ? (
+            <LandingHero
+              walletConnected={!!wallet.address}
+              loading={loading}
+              onConnectWallet={wallet.connect}
+              onRun={run}
+            />
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto perpl-scroll">
+              <ChartPanel
+                candles={candles}
+                result={result}
+                strategy={strategy}
+                params={params}
+                sliceEnd={sliceEnd}
+                sliceStart={sliceStart}
+                showReplay={showReplay}
+                replayIndex={replayIndex}
+                replayPlaying={replayPlaying}
+                onReplayIndexChange={setReplayIndex}
+                onReplayPlayingChange={setReplayPlaying}
+                onToggleReplay={toggleReplay}
+                canReplay={canReplay}
+                barIntervalMs={barIntervalMs}
+              />
 
-          {displayMetrics && <StatsStrip metrics={displayMetrics} fmt={fmt} />}
-          {result && <EquityPanel equity={result.equity} sliceEnd={sliceEnd} />}
-          {visibleTrades.length > 0 && (
-            <TradeLog trades={visibleTrades} fmt={fmt} replayActive={showReplay} />
+              {displayMetrics && <StatsStrip metrics={displayMetrics} fmt={fmt} />}
+              <EquityPanel equity={result.equity} sliceEnd={sliceEnd} sliceStart={sliceStart} />
+              {visibleTrades.length > 0 && (
+                <TradeLog trades={visibleTrades} fmt={fmt} replayActive={showReplay} />
+              )}
+            </div>
           )}
         </div>
       </div>

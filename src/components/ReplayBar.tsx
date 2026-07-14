@@ -1,6 +1,7 @@
 "use client";
 
 import type { BacktestResult, Candle, ReplayEvent } from "@/types";
+import { nextReplayIndex } from "@/lib/replay-utils";
 import { IconButton, SelectMenu } from "@/components/ui";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
@@ -8,6 +9,8 @@ interface Props {
   candles: Candle[];
   result: BacktestResult;
   index: number;
+  startIndex: number;
+  barIntervalMs: number;
   onIndexChange: (i: number) => void;
   playing: boolean;
   onPlayingChange: (p: boolean) => void;
@@ -20,6 +23,8 @@ export function ReplayBar({
   candles,
   result,
   index,
+  startIndex,
+  barIntervalMs,
   onIndexChange,
   playing,
   onPlayingChange,
@@ -29,7 +34,10 @@ export function ReplayBar({
   indexRef.current = index;
 
   const speed = SPEEDS[Number(speedIdx)] ?? 1;
+  const min = Math.min(startIndex, Math.max(0, candles.length - 1));
   const max = Math.max(0, candles.length - 1);
+  const span = Math.max(1, max - min + 1);
+  const relativeIndex = Math.max(0, index - min);
   const currentCandle = candles[index];
   const currentEquity = result.equity[index]?.equity;
   const visibleEvents = result.events.filter((e) => e.time <= (currentCandle?.time ?? 0));
@@ -38,26 +46,26 @@ export function ReplayBar({
     if (!playing) return;
     const delay = Math.max(50, 350 / speed);
     const id = setInterval(() => {
-      const next = indexRef.current + 1;
-      if (next > max) {
+      const current = indexRef.current;
+      if (current >= max) {
         onPlayingChange(false);
         return;
       }
-      onIndexChange(next);
+      onIndexChange(nextReplayIndex(candles, current, barIntervalMs));
     }, delay);
     return () => clearInterval(id);
-  }, [playing, speed, max, onIndexChange, onPlayingChange]);
+  }, [playing, speed, max, candles, barIntervalMs, onIndexChange, onPlayingChange]);
 
-  const setIdx = (i: number) => onIndexChange(Math.max(0, Math.min(max, i)));
-  const replayPct = max > 0 ? (index / max) * 100 : 0;
+  const setIdx = (i: number) => onIndexChange(Math.max(min, Math.min(max, i)));
+  const replayPct = span > 1 ? (relativeIndex / (span - 1)) * 100 : 100;
 
   return (
     <div className="space-y-2.5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 text-xs flex-wrap">
           <span className="text-[var(--bt-muted)]">
-            Bar <span className="text-white tabular-nums font-medium">{index + 1}</span>
-            <span className="text-[var(--bt-muted)]"> / {candles.length}</span>
+            Bar <span className="text-white tabular-nums font-medium">{relativeIndex + 1}</span>
+            <span className="text-[var(--bt-muted)]"> / {span}</span>
           </span>
           {currentEquity != null && (
             <span className="text-[var(--bt-muted)]">
@@ -67,8 +75,8 @@ export function ReplayBar({
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <IconButton title="Start" onClick={() => setIdx(0)}>⏮</IconButton>
-          <IconButton title="Previous" disabled={index <= 0} onClick={() => setIdx(index - 1)}>◀</IconButton>
+          <IconButton title="Start" onClick={() => setIdx(min)}>⏮</IconButton>
+          <IconButton title="Previous" disabled={index <= min} onClick={() => setIdx(index - 1)}>◀</IconButton>
           <button
             type="button"
             onClick={() => onPlayingChange(!playing)}
@@ -93,7 +101,7 @@ export function ReplayBar({
 
       <input
         type="range"
-        min={0}
+        min={min}
         max={max}
         value={index}
         onChange={(e) => {

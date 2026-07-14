@@ -19,7 +19,7 @@ import { useEffect, useRef } from "react";
 import type { BacktestResult, Candle, StrategyParams, StrategyType } from "@/types";
 import { bollinger, ema, macd, rsi, sma, stochastic } from "@/lib/indicators";
 import { donchian } from "@/lib/backtest/strategies";
-import { sliceByEnd, sliceCandles } from "@/lib/chart-utils";
+import { sliceByRange, sliceCandles } from "@/lib/chart-utils";
 import { CHART_GRID, CHART_GRID_SUB, CHART_SURFACE, CHART_TEXT } from "@/lib/chart-theme";
 
 const GRID = CHART_GRID;
@@ -39,6 +39,7 @@ interface Props {
   strategy: StrategyType;
   params: StrategyParams;
   sliceEnd?: number;
+  sliceStart?: number;
 }
 
 function scrollToEnd(chart: IChartApi, len: number, replay: boolean) {
@@ -56,6 +57,7 @@ export function CandlestickChart({
   strategy,
   params,
   sliceEnd,
+  sliceStart = 0,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -117,7 +119,7 @@ export function CandlestickChart({
     const candleSeries = candleSeriesRef.current;
     if (!chart || !candleSeries || candles.length === 0) return;
 
-    const visible = sliceCandles(candles, sliceEnd);
+    const visible = sliceCandles(candles, sliceEnd, sliceStart);
     const currentTime = visible.length > 0 ? visible[visible.length - 1].time : 0;
 
     for (const s of overlayRef.current) {
@@ -195,7 +197,7 @@ export function CandlestickChart({
     }
 
     scrollToEnd(chart, ohlc.length, sliceEnd != null);
-  }, [candles, result, strategy, params, sliceEnd]);
+  }, [candles, result, strategy, params, sliceEnd, sliceStart]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
@@ -204,17 +206,19 @@ export function RsiChart({
   candles,
   period,
   sliceEnd,
+  sliceStart = 0,
 }: {
   candles: Candle[];
   period: number;
   sliceEnd?: number;
+  sliceStart?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current || candles.length === 0) return;
 
-    const visible = sliceCandles(candles, sliceEnd);
+    const visible = sliceCandles(candles, sliceEnd, sliceStart);
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: CHART_BG },
@@ -253,7 +257,7 @@ export function RsiChart({
       ro.disconnect();
       chart.remove();
     };
-  }, [candles, period, sliceEnd]);
+  }, [candles, period, sliceEnd, sliceStart]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
@@ -264,19 +268,21 @@ export function MacdChart({
   slow,
   signal,
   sliceEnd,
+  sliceStart = 0,
 }: {
   candles: Candle[];
   fast: number;
   slow: number;
   signal: number;
   sliceEnd?: number;
+  sliceStart?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current || candles.length === 0) return;
 
-    const visible = sliceCandles(candles, sliceEnd);
+    const visible = sliceCandles(candles, sliceEnd, sliceStart);
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: CHART_BG },
@@ -330,7 +336,7 @@ export function MacdChart({
       ro.disconnect();
       chart.remove();
     };
-  }, [candles, fast, slow, signal, sliceEnd]);
+  }, [candles, fast, slow, signal, sliceEnd, sliceStart]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
@@ -340,18 +346,20 @@ export function StochasticChart({
   kPeriod,
   dPeriod,
   sliceEnd,
+  sliceStart = 0,
 }: {
   candles: Candle[];
   kPeriod: number;
   dPeriod: number;
   sliceEnd?: number;
+  sliceStart?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current || candles.length === 0) return;
 
-    const visible = sliceCandles(candles, sliceEnd);
+    const visible = sliceCandles(candles, sliceEnd, sliceStart);
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: CHART_BG },
@@ -400,7 +408,7 @@ export function StochasticChart({
       ro.disconnect();
       chart.remove();
     };
-  }, [candles, kPeriod, dPeriod, sliceEnd]);
+  }, [candles, kPeriod, dPeriod, sliceEnd, sliceStart]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
@@ -408,16 +416,18 @@ export function StochasticChart({
 export function EquityChart({
   equity,
   sliceEnd,
+  sliceStart = 0,
 }: {
   equity: { time: number; equity: number }[];
   sliceEnd?: number;
+  sliceStart?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current || equity.length === 0) return;
 
-    const visible = sliceByEnd(equity, sliceEnd);
+    const visible = sliceByRange(equity, sliceStart, sliceEnd);
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: CHART_BG },
@@ -458,7 +468,7 @@ export function EquityChart({
       ro.disconnect();
       chart.remove();
     };
-  }, [equity, sliceEnd]);
+  }, [equity, sliceEnd, sliceStart]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
