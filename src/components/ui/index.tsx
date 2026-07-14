@@ -285,11 +285,62 @@ export function SegmentedControl<T extends string>({
   onChange: (v: T) => void;
   options: { value: T; label: string }[];
 }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [thumb, setThumb] = useState({ left: 0, width: 0 });
+  const [ready, setReady] = useState(false);
+  const activeIndex = options.findIndex((o) => o.value === value);
+
+  useLayoutEffect(() => {
+    const update = () => {
+      const track = trackRef.current;
+      const btn = itemRefs.current[activeIndex];
+      if (!track || !btn || activeIndex < 0) return;
+
+      const trackRect = track.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+      setThumb({
+        left: btnRect.left - trackRect.left,
+        width: btnRect.width,
+      });
+      setReady(true);
+    };
+
+    update();
+    const track = trackRef.current;
+    if (!track) return;
+
+    const ro = new ResizeObserver(update);
+    ro.observe(track);
+    window.addEventListener("resize", update);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [activeIndex, options]);
+
   return (
-    <div className="bt-segment-track" role="tablist">
-      {options.map((o) => (
+    <div
+      ref={trackRef}
+      className="bt-segment-track"
+      data-ready={ready}
+      role="tablist"
+    >
+      <div
+        className="bt-segment-thumb"
+        aria-hidden
+        style={{
+          transform: `translateX(${thumb.left}px)`,
+          width: thumb.width,
+        }}
+      />
+      {options.map((o, i) => (
         <button
           key={o.value}
+          ref={(el) => {
+            itemRefs.current[i] = el;
+          }}
           type="button"
           role="tab"
           aria-selected={value === o.value}
@@ -375,7 +426,7 @@ export function Alert({
     success: "bg-green-500/10 text-[var(--bt-green)] border-transparent",
   };
   return (
-    <p className={`text-xs rounded-[var(--bt-radius-sm)] px-3 py-2 border ${styles[variant]}`}>
+    <p className={`text-xs rounded-[var(--bt-radius-sm)] px-3 py-2 border overflow-scroll max-h-20 ${styles[variant]}`}>
       {children}
     </p>
   );
@@ -482,3 +533,5 @@ function Chevron({ open }: { open: boolean }) {
     </svg>
   );
 }
+
+export { DateInput } from "./DateInput";

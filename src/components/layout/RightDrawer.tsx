@@ -7,7 +7,6 @@ import { OnchainTab } from "@/components/layout/OnchainTab";
 import {
   Accordion,
   AccordionGroup,
-  Alert,
   Button,
   NumInput,
   SegmentedControl,
@@ -54,14 +53,10 @@ interface Props {
   hasResult: boolean;
   showReplay: boolean;
   onToggleReplay: () => void;
-  error: string | null;
   walletAddress: string | null;
   walletConnecting: boolean;
-  walletError: string | null;
   onConnectWallet: () => void;
   commitStatus: CommitStatus;
-  commitError: string | null;
-  commitTxHash: string | null;
   onRetryCommit: () => void;
   commitsRefreshKey: number;
 }
@@ -195,21 +190,11 @@ export function RightDrawer(props: Props) {
                 </div>
               </Accordion>
             </AccordionGroup>
-
-            {props.error && (
-              <div className="px-3 pt-3">
-                <Alert variant="error">{props.error}</Alert>
-              </div>
-            )}
           </>
         ) : (
           <div className="p-3">
             <OnchainTab
               walletAddress={props.walletAddress as `0x${string}` | null}
-              commitStatus={props.commitStatus}
-              commitError={props.commitError}
-              commitTxHash={props.commitTxHash}
-              onRetryCommit={props.onRetryCommit}
               refreshKey={props.commitsRefreshKey}
             />
           </div>
@@ -225,7 +210,6 @@ export function RightDrawer(props: Props) {
             <p className="text-[10px] text-center text-[var(--bt-muted)] leading-relaxed">
               Connect on Monad to run backtests & commit results onchain
             </p>
-            {props.walletError && <Alert variant="error">{props.walletError}</Alert>}
           </>
         ) : (
           <>
@@ -235,6 +219,11 @@ export function RightDrawer(props: Props) {
                 <Button onClick={props.onRun} disabled={props.loading}>
                   {props.loading ? "Running…" : "Run Backtest"}
                 </Button>
+                {props.commitStatus === "error" && (
+                  <Button variant="secondary" onClick={props.onRetryCommit}>
+                    Retry commit
+                  </Button>
+                )}
                 {props.hasResult && (
                   <Button
                     variant="secondary"

@@ -6,7 +6,7 @@ import {
   estimateCandles,
   type PeriodConfig,
 } from "@/lib/period";
-import { Chip, SegmentedControl, TextInput } from "@/components/ui";
+import { Chip, DateInput, SegmentedControl, TextInput } from "@/components/ui";
 import type { Timeframe } from "@/types";
 
 interface Props {
@@ -68,16 +68,16 @@ export function PeriodSelector({ period, timeframe, onChange }: Props) {
         </>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          <TextInput
+          <DateInput
             label="From"
-            type="date"
             value={period.fromDate}
+            max={period.toDate}
             onChange={(v) => onChange({ ...period, fromDate: v })}
           />
-          <TextInput
+          <DateInput
             label="To"
-            type="date"
             value={period.toDate}
+            min={period.fromDate}
             onChange={(v) => onChange({ ...period, toDate: v })}
           />
         </div>

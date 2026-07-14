@@ -17,8 +17,10 @@ import type {
 import { runBacktest } from "@/lib/backtest/engine";
 import { computeReplayMetrics, tradesVisibleAt, replayTime } from "@/lib/replay-utils";
 import { commitBacktestOnchain, type CommitOnchainInput } from "@/lib/commit-onchain";
+import { explorerTxUrl } from "@/lib/chain";
 import { MARKETS } from "@/lib/constants";
 import { useWallet } from "@/hooks/useWallet";
+import { ToastProvider, useToast } from "@/hooks/useToast";
 import type { CommitStatus } from "@/types/onchain";
 import { ChartPanel } from "@/components/layout/ChartPanel";
 import { EquityPanel } from "@/components/layout/EquityPanel";
@@ -26,11 +28,22 @@ import { RightDrawer } from "@/components/layout/RightDrawer";
 import { StatsStrip } from "@/components/layout/StatsStrip";
 import { TopBar } from "@/components/layout/TopBar";
 import { TradeLog } from "@/components/layout/TradeLog";
-import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { MarketIconsProvider } from "@/hooks/useMarketIcons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type LoadingPhase = "fetching" | "computing" | "committing" | "idle";
+
+const LOADING_LABELS: Record<Exclude<LoadingPhase, "idle">, string> = {
+  fetching: "Fetching market data…",
+  computing: "Running backtest simulation…",
+  committing: "Committing result on Monad…",
+};
+
+const LOADING_HINTS: Record<Exclude<LoadingPhase, "idle">, string> = {
+  fetching: "Cached after first load · retry on 429",
+  computing: "Calculating indicators & trades",
+  committing: "Confirm the transaction in your wallet",
+};
 
 function fmt(n: number, digits = 2) {
   return n.toLocaleString("en-US", {
@@ -40,7 +53,18 @@ function fmt(n: number, digits = 2) {
 }
 
 export function BacktestApp() {
+  return (
+    <ToastProvider>
+      <MarketIconsProvider>
+        <BacktestAppInner />
+      </MarketIconsProvider>
+    </ToastProvider>
+  );
+}
+
+function BacktestAppInner() {
   const wallet = useWallet();
+  const toast = useToast();
   const [marketId, setMarketId] = useState(1);
   const [timeframe, setTimeframe] = useState<Timeframe>("1h");
   const [period, setPeriod] = useState<PeriodConfig>(defaultPeriodConfig);
@@ -56,8 +80,6 @@ export function BacktestApp() {
 
   const [loading, setLoading] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState<LoadingPhase>("idle");
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<CandleFetchResult | null>(null);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [showReplay, setShowReplay] = useState(false);
@@ -65,41 +87,103 @@ export function BacktestApp() {
   const [replayPlaying, setReplayPlaying] = useState(false);
 
   const [commitStatus, setCommitStatus] = useState<CommitStatus>("idle");
-  const [commitTxHash, setCommitTxHash] = useState<string | null>(null);
-  const [commitError, setCommitError] = useState<string | null>(null);
   const [commitsRefreshKey, setCommitsRefreshKey] = useState(0);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef(0);
   const lastCommitInputRef = useRef<CommitOnchainInput | null>(null);
+  const runInFlightRef = useRef(false);
+  const runSeqRef = useRef(0);
+  const lastWalletErrorRef = useRef<string | null>(null);
+
+  const startLoadingTimer = useCallback(() => {
+    startRef.current = Date.now();
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      toast.updateLoading({ elapsedMs: Date.now() - startRef.current });
+    }, 100);
+  }, [toast]);
+
+  const stopLoadingTimer = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+  }, []);
 
   useEffect(() => {
     if (!loading) {
-      if (timerRef.current) clearInterval(timerRef.current);
+      toast.hideLoading();
+      stopLoadingTimer();
       return;
     }
-    startRef.current = Date.now();
-    timerRef.current = setInterval(() => {
-      setElapsedMs(Date.now() - startRef.current);
-    }, 100);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [loading]);
+
+    toast.showLoading(LOADING_LABELS.fetching, LOADING_HINTS.fetching);
+    startLoadingTimer();
+
+    return stopLoadingTimer;
+  }, [loading, toast, startLoadingTimer, stopLoadingTimer]);
+
+  useEffect(() => {
+    if (!loading || loadingPhase === "idle") return;
+    toast.updateLoading({
+      message: LOADING_LABELS[loadingPhase],
+      hint: LOADING_HINTS[loadingPhase],
+    });
+  }, [loading, loadingPhase, toast]);
+
+  useEffect(() => {
+    if (!wallet.error || wallet.error === lastWalletErrorRef.current) return;
+    lastWalletErrorRef.current = wallet.error;
+    toast.error(wallet.error);
+  }, [wallet.error, toast]);
+
+  const retryCommit = useCallback(async () => {
+    const input = lastCommitInputRef.current;
+    if (!input || !wallet.address) {
+      toast.error("Connect your wallet to retry the commit.");
+      return;
+    }
+
+    setCommitStatus("committing");
+    toast.showLoading(LOADING_LABELS.committing, LOADING_HINTS.committing);
+    startLoadingTimer();
+
+    try {
+      const committed = await commitBacktestOnchain(input);
+      stopLoadingTimer();
+      toast.hideLoading();
+      setCommitStatus("success");
+      toast.success("Backtest committed on Monad", {
+        href: explorerTxUrl(committed.txHash),
+        hrefLabel: "View tx",
+      });
+      setCommitsRefreshKey((k) => k + 1);
+    } catch (e) {
+      stopLoadingTimer();
+      toast.hideLoading();
+      setCommitStatus("error");
+      const message = e instanceof Error ? e.message : "Onchain commit failed";
+      toast.error(message, {
+        action: { label: "Retry", onClick: () => void retryCommit() },
+      });
+    }
+  }, [wallet.address, toast, startLoadingTimer, stopLoadingTimer]);
 
   const run = useCallback(async () => {
-    if (!wallet.address) return;
+    if (!wallet.address) {
+      toast.error("Connect your wallet to run a backtest.");
+      return;
+    }
+    if (runInFlightRef.current) return;
+
+    runInFlightRef.current = true;
+    const runSeq = ++runSeqRef.current;
 
     setLoading(true);
     setLoadingPhase("fetching");
-    setElapsedMs(0);
-    setError(null);
     setShowReplay(false);
     setReplayPlaying(false);
     setReplayIndex(0);
     setCommitStatus("idle");
-    setCommitTxHash(null);
-    setCommitError(null);
 
     try {
       const url = buildCandlesQuery(marketId, timeframe, period);
@@ -144,6 +228,7 @@ export function BacktestApp() {
 
       setLoadingPhase("committing");
       setCommitStatus("committing");
+
       const commitInput: CommitOnchainInput = {
         walletAddress: wallet.address,
         marketId,
@@ -162,21 +247,35 @@ export function BacktestApp() {
         result: btResult,
       };
       lastCommitInputRef.current = commitInput;
+
       try {
         const committed = await commitBacktestOnchain(commitInput);
+        if (runSeq !== runSeqRef.current) return;
         setCommitStatus("success");
-        setCommitTxHash(committed.txHash);
+        toast.success("Backtest committed on Monad", {
+          href: explorerTxUrl(committed.txHash),
+          hrefLabel: "View tx",
+        });
         setCommitsRefreshKey((k) => k + 1);
       } catch (e) {
+        if (runSeq !== runSeqRef.current) return;
         setCommitStatus("error");
-        setCommitError(e instanceof Error ? e.message : "Onchain commit failed");
+        const message = e instanceof Error ? e.message : "Onchain commit failed";
+        toast.error(message, {
+          action: { label: "Retry", onClick: () => void retryCommit() },
+        });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      if (runSeq !== runSeqRef.current) return;
+      setCommitStatus("idle");
+      toast.error(e instanceof Error ? e.message : "Unknown error");
       setResult(null);
     } finally {
-      setLoading(false);
-      setLoadingPhase("idle");
+      if (runSeq === runSeqRef.current) {
+        runInFlightRef.current = false;
+        setLoading(false);
+        setLoadingPhase("idle");
+      }
     }
   }, [
     wallet.address,
@@ -192,25 +291,9 @@ export function BacktestApp() {
     feeBps,
     enableFunding,
     fundingRateBps,
+    toast,
+    retryCommit,
   ]);
-
-  const retryCommit = useCallback(async () => {
-    const input = lastCommitInputRef.current;
-    if (!input || !wallet.address) return;
-
-    setCommitStatus("committing");
-    setCommitError(null);
-    setCommitTxHash(null);
-    try {
-      const committed = await commitBacktestOnchain(input);
-      setCommitStatus("success");
-      setCommitTxHash(committed.txHash);
-      setCommitsRefreshKey((k) => k + 1);
-    } catch (e) {
-      setCommitStatus("error");
-      setCommitError(e instanceof Error ? e.message : "Onchain commit failed");
-    }
-  }, [wallet.address]);
 
   const toggleReplay = () => {
     setShowReplay((prev) => {
@@ -245,10 +328,7 @@ export function BacktestApp() {
   }, [result, showReplay, sliceEnd, candles]);
 
   return (
-    <MarketIconsProvider>
     <div className="min-h-screen flex bg-[var(--bt-bg)] text-[var(--bt-text)]">
-      <LoadingOverlay active={loading} phase={loadingPhase} elapsedMs={elapsedMs} />
-
       <div className="flex-1 min-w-0 flex flex-col min-h-screen">
         <TopBar
           marketId={marketId}
@@ -312,18 +392,13 @@ export function BacktestApp() {
         hasResult={!!result}
         showReplay={showReplay}
         onToggleReplay={toggleReplay}
-        error={error}
         walletAddress={wallet.address}
         walletConnecting={wallet.connecting}
-        walletError={wallet.error}
         onConnectWallet={wallet.connect}
         commitStatus={commitStatus}
-        commitError={commitError}
-        commitTxHash={commitTxHash}
         onRetryCommit={retryCommit}
         commitsRefreshKey={commitsRefreshKey}
       />
     </div>
-    </MarketIconsProvider>
   );
 }

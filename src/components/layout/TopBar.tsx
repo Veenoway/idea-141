@@ -26,8 +26,9 @@ export function TopBar({ marketId, timeframe, period, data, candleCount }: Props
   return (
     <header className="shrink-0 px-3 py-3 border-b border-white/[0.03] bg-[var(--paper-2)]">
       <div className="flex items-center gap-4 flex-wrap">
+        <img src="https://pbs.twimg.com/profile_images/2061689765854867456/hXUMeXnP_400x400.jpg" alt="Perp Backtest Bench" className="w-8 h-8 rounded-full" />
         <h1 className="text-lg font-bold text-white tracking-tight whitespace-nowrap shrink-0">
-          Perp Backtest Bench
+          Something
         </h1>
 
         <div className="hidden sm:block w-px h-10 bg-white/[0.06] shrink-0" aria-hidden />

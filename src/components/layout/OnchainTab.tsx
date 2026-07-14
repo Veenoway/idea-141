@@ -3,31 +3,20 @@
 import { explorerTxUrl } from "@/lib/chain";
 import { shortHash } from "@/lib/commit-hash";
 import type { WalletCommit } from "@/lib/onchain-history";
-import { Alert, Badge, Button } from "@/components/ui";
-import type { CommitStatus } from "@/types/onchain";
+import { useToast } from "@/hooks/useToast";
+import { Badge } from "@/components/ui";
 import type { Address } from "viem";
 import { useCallback, useEffect, useState } from "react";
 
 interface Props {
   walletAddress: Address | null;
-  commitStatus: CommitStatus;
-  commitError: string | null;
-  commitTxHash: string | null;
-  onRetryCommit: () => void;
   refreshKey?: number;
 }
 
-export function OnchainTab({
-  walletAddress,
-  commitStatus,
-  commitError,
-  commitTxHash,
-  onRetryCommit,
-  refreshKey = 0,
-}: Props) {
+export function OnchainTab({ walletAddress, refreshKey = 0 }: Props) {
+  const toast = useToast();
   const [commits, setCommits] = useState<WalletCommit[]>([]);
   const [loading, setLoading] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!walletAddress) {
@@ -35,18 +24,17 @@ export function OnchainTab({
       return;
     }
     setLoading(true);
-    setFetchError(null);
     try {
       const res = await fetch(`/api/onchain/commits?wallet=${walletAddress}`);
       const data = (await res.json()) as { commits?: WalletCommit[]; error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to load commits");
       setCommits(data.commits ?? []);
     } catch (e) {
-      setFetchError(e instanceof Error ? e.message : "Failed to load commits");
+      toast.error(e instanceof Error ? e.message : "Failed to load commits");
     } finally {
       setLoading(false);
     }
-  }, [walletAddress]);
+  }, [walletAddress, toast]);
 
   useEffect(() => {
     load();
@@ -62,31 +50,6 @@ export function OnchainTab({
 
   return (
     <div className="space-y-4">
-      {commitStatus === "committing" && (
-        <Alert variant="info">Committing latest backtest… confirm in your wallet</Alert>
-      )}
-
-      {commitStatus === "error" && commitError && (
-        <div className="space-y-2">
-          <Alert variant="error">{commitError}</Alert>
-          <Button onClick={onRetryCommit}>Retry commit</Button>
-        </div>
-      )}
-
-      {commitStatus === "success" && commitTxHash && (
-        <Alert variant="success">
-          Latest backtest committed ·{" "}
-          <a
-            href={explorerTxUrl(commitTxHash)}
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--bt-accent)] hover:underline"
-          >
-            View tx
-          </a>
-        </Alert>
-      )}
-
       <div className="flex items-center justify-between gap-2">
         <p className="text-[10px] uppercase tracking-widest text-[var(--bt-muted)] font-semibold">
           Wallet commits
@@ -100,8 +63,6 @@ export function OnchainTab({
           {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
-
-      {fetchError && <Alert variant="error">{fetchError}</Alert>}
 
       {loading && commits.length === 0 ? (
         <p className="text-xs text-[var(--bt-muted)]">Loading commits…</p>

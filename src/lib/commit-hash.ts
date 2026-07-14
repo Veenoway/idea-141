@@ -1,4 +1,4 @@
-import { encodeAbiParameters, keccak256 } from "viem";
+import { encodeAbiParameters, getAddress, keccak256, type Address } from "viem";
 import type { BacktestResult, StrategyParams, StrategyType, Timeframe } from "@/types";
 import type { PeriodConfig } from "@/lib/period";
 
@@ -62,6 +62,10 @@ export function hashBacktestConfig(input: CommitConfigInput): `0x${string}` {
 
 export function hashBacktestResult(result: BacktestResult): `0x${string}` {
   const m = result.metrics;
+  const profitFactorScaled = Number.isFinite(m.profitFactor)
+    ? Math.round(m.profitFactor * 10000)
+    : 0;
+
   return keccak256(
     encodeAbiParameters(
       [
@@ -71,7 +75,7 @@ export function hashBacktestResult(result: BacktestResult): `0x${string}` {
         { type: "uint256" },
         { type: "uint256" },
         { type: "uint256" },
-        { type: "uint256" },
+        { type: "int256" },
       ],
       [
         BigInt(Math.round(m.totalPnl * 100)),
@@ -79,7 +83,7 @@ export function hashBacktestResult(result: BacktestResult): `0x${string}` {
         BigInt(m.totalTrades),
         BigInt(Math.round(m.winRate * 100)),
         BigInt(Math.round(m.maxDrawdownPercent * 100)),
-        BigInt(Math.round(m.profitFactor * 10000)),
+        BigInt(Math.max(0, profitFactorScaled)),
         BigInt(Math.round(m.totalFunding * 100)),
       ]
     )
@@ -92,6 +96,17 @@ export function pnlToUsdCents(pnl: number): bigint {
 
 export function shortHash(hash: string) {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
+}
+
+export async function resolveConnectedAccount(
+  provider: NonNullable<ReturnType<typeof getEthereumProvider>>
+): Promise<Address> {
+  await ensureMonadChain(provider);
+  const accounts = (await provider.request({ method: "eth_accounts" })) as Address[];
+  if (!accounts[0]) {
+    throw new Error("Wallet not connected. Reconnect and try again.");
+  }
+  return getAddress(accounts[0]);
 }
 
 export function getEthereumProvider(): {

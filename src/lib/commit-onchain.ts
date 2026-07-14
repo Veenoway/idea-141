@@ -7,6 +7,7 @@ import {
   hashBacktestResult,
   isRegistryConfigured,
   pnlToUsdCents,
+  resolveConnectedAccount,
   type CommitConfigInput,
 } from "@/lib/commit-hash";
 import { BACKTEST_REGISTRY_ADDRESS } from "@/lib/deployed";
@@ -43,6 +44,8 @@ export async function commitBacktestOnchain(
   const provider = getEthereumProvider();
   if (!provider) throw new Error("No wallet found.");
 
+  const account = await resolveConnectedAccount(provider);
+
   const market =
     input.market ||
     MARKETS.find((m) => m.id === input.marketId)?.name ||
@@ -52,6 +55,7 @@ export async function commitBacktestOnchain(
   const resultHash = hashBacktestResult(input.result);
 
   const walletClient = createWalletClient({
+    account,
     chain: monad,
     transport: custom(provider),
   });
@@ -62,7 +66,8 @@ export async function commitBacktestOnchain(
     address: registryAddress,
     abi: backtestRegistryAbi,
     functionName: "commitResult",
-    account: input.walletAddress,
+    chain: monad,
+    account,
     args: [
       configHash,
       resultHash,
@@ -72,7 +77,14 @@ export async function commitBacktestOnchain(
     ],
   });
 
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  try {
+    await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+      timeout: 120_000,
+    });
+  } catch {
+    // Tx was already submitted — receipt polling can fail without invalidating the send.
+  }
 
   const commitId = await publicClient.readContract({
     address: registryAddress,
