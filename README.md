@@ -81,4 +81,3 @@ Explorer: [MonadVision](https://monadvision.com)
 ## License
 
 MIT
-# backtesting-hackathon
