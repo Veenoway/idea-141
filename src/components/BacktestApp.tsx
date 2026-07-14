@@ -22,13 +22,9 @@ import { MARKETS } from "@/lib/constants";
 import { useWallet } from "@/hooks/useWallet";
 import { ToastProvider, useToast } from "@/hooks/useToast";
 import type { CommitStatus } from "@/types/onchain";
-import { ChartPanel } from "@/components/layout/ChartPanel";
-import { EquityPanel } from "@/components/layout/EquityPanel";
-import { LandingHero } from "@/components/layout/LandingHero";
+import { MainWorkspace } from "@/components/layout/MainWorkspace";
 import { RightDrawer } from "@/components/layout/RightDrawer";
-import { StatsStrip } from "@/components/layout/StatsStrip";
 import { TopBar } from "@/components/layout/TopBar";
-import { TradeLog } from "@/components/layout/TradeLog";
 import { MarketIconsProvider } from "@/hooks/useMarketIcons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -352,39 +348,29 @@ function BacktestAppInner() {
         />
 
         <div className="flex-1 min-h-0 flex flex-col p-2">
-          {!result ? (
-            <LandingHero
-              walletConnected={!!wallet.address}
-              loading={loading}
-              onConnectWallet={wallet.connect}
-              onRun={run}
-            />
-          ) : (
-            <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto perpl-scroll">
-              <ChartPanel
-                candles={candles}
-                result={result}
-                strategy={strategy}
-                params={params}
-                sliceEnd={sliceEnd}
-                sliceStart={sliceStart}
-                showReplay={showReplay}
-                replayIndex={replayIndex}
-                replayPlaying={replayPlaying}
-                onReplayIndexChange={setReplayIndex}
-                onReplayPlayingChange={setReplayPlaying}
-                onToggleReplay={toggleReplay}
-                canReplay={canReplay}
-                barIntervalMs={barIntervalMs}
-              />
-
-              {displayMetrics && <StatsStrip metrics={displayMetrics} fmt={fmt} />}
-              <EquityPanel equity={result.equity} sliceEnd={sliceEnd} sliceStart={sliceStart} />
-              {visibleTrades.length > 0 && (
-                <TradeLog trades={visibleTrades} fmt={fmt} replayActive={showReplay} />
-              )}
-            </div>
-          )}
+          <MainWorkspace
+            result={result}
+            candles={candles}
+            strategy={strategy}
+            params={params}
+            sliceEnd={sliceEnd}
+            sliceStart={sliceStart}
+            showReplay={showReplay}
+            replayIndex={replayIndex}
+            replayPlaying={replayPlaying}
+            onReplayIndexChange={setReplayIndex}
+            onReplayPlayingChange={setReplayPlaying}
+            onToggleReplay={toggleReplay}
+            canReplay={canReplay}
+            barIntervalMs={barIntervalMs}
+            displayMetrics={displayMetrics}
+            visibleTrades={visibleTrades}
+            fmt={fmt}
+            walletConnected={!!wallet.address}
+            loading={loading}
+            onConnectWallet={wallet.connect}
+            onRun={run}
+          />
         </div>
       </div>
 

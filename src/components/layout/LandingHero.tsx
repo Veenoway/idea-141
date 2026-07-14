@@ -14,7 +14,7 @@ const STEPS = [
   {
     n: "01",
     title: "Connect wallet",
-    desc: "Monad mainnet — only needed to run backtests and commit results.",
+    desc: "MetaMask, Rabby, WalletConnect & more via Reown — Monad mainnet.",
   },
   {
     n: "02",
@@ -60,7 +60,7 @@ export function LandingHero({
               Perpl · Monad
             </p>
             <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
-              IDEA #139
+              IDEA #141
             </h2>
           </div>
         </div>

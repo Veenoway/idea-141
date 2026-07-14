@@ -1,29 +1,25 @@
+"use client";
+
 import { MARKETS } from "@/lib/constants";
 import { backtestRegistryAbi } from "@/lib/contracts/backtest-registry";
 import { monad } from "@/lib/chain";
 import {
-  getEthereumProvider,
   hashBacktestConfig,
   hashBacktestResult,
-  isRegistryConfigured,
   pnlToUsdCents,
-  resolveConnectedAccount,
   type CommitConfigInput,
 } from "@/lib/commit-hash";
-import { BACKTEST_REGISTRY_ADDRESS } from "@/lib/deployed";
+import { getRegistryAddress } from "@/lib/registry";
+import { getActiveWalletClient, resolveWalletAccount } from "@/lib/wallet-session";
 import type { BacktestResult } from "@/types";
 import { createMonadPublicClient } from "@/lib/rpc";
-import { createWalletClient, custom, type Address, type Hash } from "viem";
+import type { Hash } from "viem";
 
-export function getRegistryAddress(): `0x${string}` | null {
-  const envAddr = process.env.NEXT_PUBLIC_BACKTEST_REGISTRY_ADDRESS;
-  const addr = envAddr && envAddr.length > 0 ? envAddr : BACKTEST_REGISTRY_ADDRESS;
-  return isRegistryConfigured(addr) ? addr : null;
-}
+export { getRegistryAddress } from "@/lib/registry";
 
 export interface CommitOnchainInput extends CommitConfigInput {
   result: BacktestResult;
-  walletAddress: Address;
+  walletAddress: `0x${string}`;
 }
 
 export interface CommitOnchainResult {
@@ -41,10 +37,10 @@ export async function commitBacktestOnchain(
     throw new Error("Registry contract not configured.");
   }
 
-  const provider = getEthereumProvider();
-  if (!provider) throw new Error("No wallet found.");
-
-  const account = await resolveConnectedAccount(provider);
+  const account = await resolveWalletAccount();
+  if (account.toLowerCase() !== input.walletAddress.toLowerCase()) {
+    throw new Error("Connected wallet changed. Reconnect and try again.");
+  }
 
   const market =
     input.market ||
@@ -54,11 +50,7 @@ export async function commitBacktestOnchain(
   const configHash = hashBacktestConfig({ ...input, market });
   const resultHash = hashBacktestResult(input.result);
 
-  const walletClient = createWalletClient({
-    account,
-    chain: monad,
-    transport: custom(provider),
-  });
+  const walletClient = await getActiveWalletClient();
 
   const publicClient = createMonadPublicClient();
 

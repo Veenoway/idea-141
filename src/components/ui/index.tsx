@@ -147,17 +147,71 @@ export function NumInput({
   max?: number;
 }) {
   const id = useId();
+  const [draft, setDraft] = useState<string | null>(null);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(null);
+  }, [value]);
+
+  const clamp = (n: number) => {
+    let next = n;
+    if (min != null) next = Math.max(min, next);
+    if (max != null) next = Math.min(max, next);
+    return next;
+  };
+
+  const parseIfComplete = (raw: string): number | null => {
+    const t = raw.trim();
+    if (t === "" || t === "-" || t === "." || t === "-." || t.endsWith(".")) return null;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const normalizeDraft = (raw: string) => {
+    if (!/^-?\d+\.\d*$/.test(raw) && /^-?0\d+/.test(raw)) {
+      return raw.replace(/^(-?)0+(?=\d)/, "$1");
+    }
+    return raw;
+  };
+
+  const commit = (raw: string) => {
+    const parsed = parseIfComplete(raw);
+    const next = parsed != null ? clamp(parsed) : clamp(value);
+    onChange(next);
+    setDraft(null);
+  };
+
+  const handleChange = (raw: string) => {
+    if (raw !== "" && !/^-?\d*\.?\d*$/.test(raw)) return;
+    const next = normalizeDraft(raw);
+    setDraft(next);
+    const parsed = parseIfComplete(next);
+    if (parsed != null) onChange(clamp(parsed));
+  };
+
   return (
     <label className="block">
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       <input
         id={id}
-        type="number"
-        value={value}
+        type="text"
+        inputMode="decimal"
+        value={draft ?? String(value)}
         step={step}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onFocus={(e) => {
+          focusedRef.current = true;
+          setDraft(String(value));
+          e.currentTarget.select();
+        }}
+        onBlur={() => {
+          focusedRef.current = false;
+          commit(draft ?? String(value));
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+        onChange={(e) => handleChange(e.target.value)}
         className="bt-input tabular-nums"
       />
     </label>
@@ -426,7 +480,7 @@ export function Alert({
     success: "bg-green-500/10 text-[var(--bt-green)] border-transparent",
   };
   return (
-    <p className={`text-xs rounded-[var(--bt-radius-sm)] px-3 py-2 border overflow-scroll max-h-20 ${styles[variant]}`}>
+    <p className={`text-xs rounded-[var(--bt-radius-sm)] px-3 py-2 border overflow-scroll max-h-20 perpl-scroll ${styles[variant]}`}>
       {children}
     </p>
   );

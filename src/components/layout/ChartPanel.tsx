@@ -9,6 +9,7 @@ import {
 } from "@/components/charts";
 import { ReplayBar } from "@/components/ReplayBar";
 import type { BacktestResult, Candle, StrategyParams, StrategyType } from "@/types";
+import { useEffect, useRef, useState } from "react";
 
 interface Props {
   candles: Candle[];
@@ -27,6 +28,9 @@ interface Props {
   barIntervalMs: number;
 }
 
+const REPLAY_ENTER_MS = 320;
+const REPLAY_EXIT_MS = 260;
+
 export function ChartPanel({
   candles,
   result,
@@ -43,15 +47,60 @@ export function ChartPanel({
   canReplay,
   barIntervalMs,
 }: Props) {
+  const [replayBarMounted, setReplayBarMounted] = useState(showReplay);
+  const [replayBarPhase, setReplayBarPhase] = useState<"idle" | "enter" | "exit">("idle");
+  const [replayModePhase, setReplayModePhase] = useState<"idle" | "enter" | "exit">("idle");
+  const prevShowReplay = useRef(showReplay);
+  const timersRef = useRef<number[]>([]);
+
+  const clearTimers = () => {
+    for (const id of timersRef.current) window.clearTimeout(id);
+    timersRef.current = [];
+  };
+
+  const schedule = (fn: () => void, ms: number) => {
+    const id = window.setTimeout(fn, ms);
+    timersRef.current.push(id);
+  };
+
+  useEffect(() => {
+    if (prevShowReplay.current === showReplay) return;
+    prevShowReplay.current = showReplay;
+
+    clearTimers();
+
+    if (showReplay) {
+      setReplayBarMounted(true);
+      setReplayBarPhase("enter");
+      setReplayModePhase("enter");
+      schedule(() => {
+        setReplayBarPhase("idle");
+        setReplayModePhase("idle");
+      }, REPLAY_ENTER_MS);
+    } else {
+      setReplayBarPhase("exit");
+      setReplayModePhase("exit");
+      schedule(() => {
+        setReplayBarMounted(false);
+        setReplayBarPhase("idle");
+        setReplayModePhase("idle");
+      }, REPLAY_EXIT_MS);
+    }
+
+    return clearTimers;
+  }, [showReplay]);
+
+  useEffect(() => () => clearTimers(), []);
+
   return (
     <section className="bt-main-panel p-3 flex flex-col shrink-0">
       <div className="flex items-center justify-between mb-3 shrink-0">
-        <h2 className="text-sm font-medium text-[var(--bt-label)]">Chart</h2>
+        <h2 className="text-sm font-medium text-[var(--bt-label)]">Adding a text to fill the space {":)"}</h2>
         {canReplay && (
           <Button
-            variant={showReplay ? "secondary" : "ghost"}
+            variant={showReplay ? "secondary" : "primary"}
             onClick={onToggleReplay}
-            className={`!w-auto !py-1.5 !px-3 !text-xs ${showReplay ? "!brightness-110" : ""}`}
+            className="!w-auto !py-1.5 !px-3 !text-xs"
           >
             {showReplay ? "Exit Replay" : "▶ Replay"}
           </Button>
@@ -59,21 +108,33 @@ export function ChartPanel({
       </div>
 
       <div className="flex flex-col gap-2">
-        {showReplay && result && candles.length > 0 && (
-          <ReplayBar
-            candles={candles}
-            result={result}
-            index={replayIndex}
-            startIndex={sliceStart}
-            barIntervalMs={barIntervalMs}
-            onIndexChange={onReplayIndexChange}
-            playing={replayPlaying}
-            onPlayingChange={onReplayPlayingChange}
-          />
+        {replayBarMounted && result && candles.length > 0 && (
+          <div
+            className={`bt-replay-bar overflow-hidden ${
+              replayBarPhase === "enter" ? "bt-replay-bar--enter" : ""
+            } ${replayBarPhase === "exit" ? "bt-replay-bar--exit" : ""}`}
+          >
+            <ReplayBar
+              candles={candles}
+              result={result}
+              index={replayIndex}
+              startIndex={sliceStart}
+              barIntervalMs={barIntervalMs}
+              onIndexChange={onReplayIndexChange}
+              playing={replayPlaying}
+              onPlayingChange={onReplayPlayingChange}
+            />
+          </div>
         )}
 
         {candles.length > 0 ? (
-          <div className="flex flex-col gap-2">
+          <div
+            className={`flex flex-col gap-2 bt-replay-chart-wrap ${
+              replayModePhase === "enter" ? "bt-replay-chart-wrap--enter" : ""
+            } ${replayModePhase === "exit" ? "bt-replay-chart-wrap--exit" : ""} ${
+              showReplay ? "bt-replay-chart-wrap--active" : ""
+            }`}
+          >
             <div className="h-[520px] shrink-0 bt-chart-well">
               <CandlestickChart
                 candles={candles}

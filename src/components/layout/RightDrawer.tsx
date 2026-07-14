@@ -208,7 +208,7 @@ export function RightDrawer(props: Props) {
               {props.walletConnecting ? "Connecting…" : "Connect Wallet"}
             </Button>
             <p className="text-[10px] text-center text-[var(--bt-muted)] leading-relaxed">
-              Connect on Monad to run backtests & commit results onchain
+              MetaMask, Rabby, WalletConnect & more — Monad mainnet
             </p>
           </>
         ) : (

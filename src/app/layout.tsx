@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
+import { Web3Provider } from "@/context/web3-provider";
+import { WalletProvider } from "@/context/wallet-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,20 +16,24 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Perpl Backtest Lab",
+  title: "Idea #141",
   description:
-    "Backtest perpetual futures strategies on Perpl market data — MA, RSI, MACD with leverage, stop loss & take profit.",
+    "Perpetual futures trading simulator with customizable settings for MA, RSI, MACD, and more.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const cookieStore = await cookies();
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {children}
+        <Web3Provider cookies={cookieStore.toString()}>
+          <WalletProvider>{children}</WalletProvider>
+        </Web3Provider>
       </body>
     </html>
   );

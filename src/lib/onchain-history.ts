@@ -1,5 +1,5 @@
 import { backtestRegistryAbi } from "@/lib/contracts/backtest-registry";
-import { getRegistryAddress } from "@/lib/commit-onchain";
+import { getRegistryAddress } from "@/lib/registry";
 import { BACKTEST_REGISTRY_DEPLOY_BLOCK } from "@/lib/deployed";
 import { createMonadPublicClient, getLogsInChunks } from "@/lib/rpc";
 import type { Address, Hash } from "viem";

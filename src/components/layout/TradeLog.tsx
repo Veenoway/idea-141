@@ -55,7 +55,7 @@ export function TradeLog({ trades, fmt, replayActive }: Props) {
   return (
     <section className="bt-main-panel p-3 shrink-0">
       <h2 className="text-sm font-medium text-[var(--bt-label)] mb-3">Trade Log ({trades.length})</h2>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto perpl-scroll">
         <table className="w-full text-xs">
           <thead>
             <tr className="bt-table-head bt-table-row">

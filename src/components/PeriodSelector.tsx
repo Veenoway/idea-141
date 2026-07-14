@@ -6,7 +6,7 @@ import {
   estimateCandles,
   type PeriodConfig,
 } from "@/lib/period";
-import { Chip, DateInput, SegmentedControl, TextInput } from "@/components/ui";
+import { Chip, DateInput, NumInput, SegmentedControl } from "@/components/ui";
 import type { Timeframe } from "@/types";
 
 interface Props {
@@ -55,15 +55,13 @@ export function PeriodSelector({ period, timeframe, onChange }: Props) {
               </Chip>
             ))}
           </div>
-          <TextInput
+          <NumInput
             label="Custom (1–365)"
-            type="number"
+            value={period.days}
             min={1}
             max={365}
-            value={period.days}
-            onChange={(v) =>
-              onChange({ ...period, days: Math.min(365, Math.max(1, Number(v) || 1)) })
-            }
+            step={1}
+            onChange={(days) => onChange({ ...period, days })}
           />
         </>
       ) : (
