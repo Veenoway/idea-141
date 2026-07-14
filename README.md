@@ -1,4 +1,4 @@
-# Perpl Backtest Lab
+# Idea 141
 
 Backtesting tool for **perpetual futures strategies** on [Perpl](https://perpl.xyz) (Monad). Built for traders who backtest seriously — inspired by tools like fxreplay, but native to the Perpl ecosystem.
 
