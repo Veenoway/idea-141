@@ -1,7 +1,6 @@
 "use client";
 
 import type { BacktestResult } from "@/types";
-import { Badge, Panel } from "@/components/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 interface Props {
@@ -54,54 +53,51 @@ export function TradeLog({ trades, fmt, replayActive }: Props) {
   }, [trades, replayActive]);
 
   return (
-    <div className="p-4 bg-[var(--bt-bg)]">
-      <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-sm font-medium text-[var(--bt-label)]">Trade Log ({trades.length})</h2>
-        {replayActive && <Badge tone="accent">live replay</Badge>}
-      </div>
-      <Panel className="overflow-x-auto">
+    <section className="bt-main-panel p-3 shrink-0">
+      <h2 className="text-sm font-medium text-[var(--bt-label)] mb-3">Trade Log ({trades.length})</h2>
+      <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="text-[var(--bt-muted)] border-b border-[var(--bt-border)] bg-[var(--bt-input)]">
-              <th className="text-left py-2.5 px-3 font-medium uppercase tracking-wide text-[10px]">#</th>
-              <th className="text-left py-2.5 px-3 font-medium uppercase tracking-wide text-[10px]">Side</th>
-              <th className="text-right py-2.5 px-3 font-medium uppercase tracking-wide text-[10px]">Entry</th>
-              <th className="text-right py-2.5 px-3 font-medium uppercase tracking-wide text-[10px]">Exit</th>
-              <th className="text-right py-2.5 px-3 font-medium uppercase tracking-wide text-[10px]">PnL</th>
-              <th className="text-right py-2.5 px-3 font-medium uppercase tracking-wide text-[10px]">Reason</th>
+            <tr className="bt-table-head bt-table-row">
+              <th className="text-left uppercase tracking-wide text-[10px]">#</th>
+              <th className="text-left uppercase tracking-wide text-[10px]">Side</th>
+              <th className="text-right uppercase tracking-wide text-[10px]">Entry</th>
+              <th className="text-right uppercase tracking-wide text-[10px]">Exit</th>
+              <th className="text-right uppercase tracking-wide text-[10px]">PnL</th>
+              <th className="text-right uppercase tracking-wide text-[10px]">Reason</th>
             </tr>
           </thead>
           <tbody>
             {sortedTrades.map((t) => (
               <tr
                 key={t.id}
-                className={`border-b border-[var(--bt-border)] hover:bg-[var(--bt-card-hover)] transition-colors ${
+                className={`bt-table-row border-t border-white/[0.03] hover:brightness-[1.03] transition-[filter] ${
                   highlightedIds.has(t.id) ? "trade-row-new" : ""
                 }`}
               >
-                <td className="py-2 px-3 text-[var(--bt-muted)]">{t.id}</td>
+                <td className="text-[var(--bt-muted)]">{t.id}</td>
                 <td
-                  className={`py-2 px-3 font-medium ${
+                  className={`font-medium ${
                     t.side === "long" ? "text-green-500" : "text-red-500"
                   }`}
                 >
                   {t.side.toUpperCase()}
                 </td>
-                <td className="py-2 px-3 text-right tabular-nums">${fmt(t.entryPrice)}</td>
-                <td className="py-2 px-3 text-right tabular-nums">${fmt(t.exitPrice)}</td>
+                <td className="text-right tabular-nums">${fmt(t.entryPrice)}</td>
+                <td className="text-right tabular-nums">${fmt(t.exitPrice)}</td>
                 <td
-                  className={`py-2 px-3 text-right font-medium tabular-nums ${
+                  className={`text-right font-medium tabular-nums ${
                     t.pnl >= 0 ? "text-green-500" : "text-red-500"
                   }`}
                 >
                   {t.pnl >= 0 ? "+" : ""}${fmt(t.pnl)}
                 </td>
-                <td className="py-2 px-3 text-right text-[var(--bt-muted)]">{t.reason}</td>
+                <td className="text-right text-[var(--bt-muted)]">{t.reason}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      </Panel>
-    </div>
+      </div>
+    </section>
   );
 }

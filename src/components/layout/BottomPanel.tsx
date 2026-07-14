@@ -29,7 +29,7 @@ export function BottomPanel({ result, fmt }: Props) {
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`px-4 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition ${
+              className={`px-3 py-2.5 text-xs font-medium whitespace-nowrap border-b-2 transition ${
                 tab === t.id
                   ? "border-[var(--perpl-purple)] text-white"
                   : "border-transparent text-[var(--perpl-muted)] hover:text-white"
@@ -46,7 +46,7 @@ export function BottomPanel({ result, fmt }: Props) {
 
       <div className="flex-1 min-h-0 overflow-auto perpl-scroll">
         {!result && (
-          <p className="p-4 text-sm text-[var(--perpl-muted)]">Run a backtest to see results</p>
+          <p className="p-3 text-sm text-[var(--perpl-muted)]">Run a backtest to see results</p>
         )}
 
         {tab === "trades" && result && (
@@ -94,19 +94,19 @@ export function BottomPanel({ result, fmt }: Props) {
         )}
 
         {tab === "positions" && result && (
-          <p className="p-4 text-sm text-[var(--perpl-muted)]">
+          <p className="p-3 text-sm text-[var(--perpl-muted)]">
             Positions are closed at end of backtest — see Trade History.
           </p>
         )}
 
         {tab === "orders" && result && (
-          <p className="p-4 text-sm text-[var(--perpl-muted)]">
+          <p className="p-3 text-sm text-[var(--perpl-muted)]">
             {result.trades.length} filled orders in this simulation.
           </p>
         )}
 
         {tab === "pnl" && result && (
-          <div className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
             <PnlCell label="Total PnL" value={`${result.metrics.totalPnl >= 0 ? "+" : ""}$${fmt(result.metrics.totalPnl)}`} positive={result.metrics.totalPnl >= 0} />
             <PnlCell label="Return" value={`${result.metrics.totalPnlPercent >= 0 ? "+" : ""}${fmt(result.metrics.totalPnlPercent)}%`} positive={result.metrics.totalPnlPercent >= 0} />
             <PnlCell label="Max Drawdown" value={`-${fmt(result.metrics.maxDrawdownPercent, 1)}%`} positive={false} />

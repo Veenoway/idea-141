@@ -2,7 +2,7 @@
 
 export function TopNav() {
   return (
-    <header className="h-12 flex items-center justify-between px-4 border-b border-[var(--perpl-border)] bg-[var(--perpl-bg)] shrink-0">
+    <header className="h-12 flex items-center justify-between px-3 border-b border-[var(--perpl-border)] bg-[var(--perpl-bg)] shrink-0">
       <div className="flex items-center gap-6 lg:gap-8 min-w-0">
         <div className="flex items-center gap-2 shrink-0">
           <PerplLogo />

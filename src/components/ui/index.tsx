@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export function FieldLabel({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
   if (!children) return null;
   return (
     <span
       id={htmlFor}
-      className="block text-[10px] uppercase tracking-wider text-[var(--bt-muted)] mb-1.5 font-medium"
+      className="block text-xs text-[var(--bt-muted)] mb-1.5 font-medium"
     >
       {children}
     </span>
@@ -49,15 +50,11 @@ export function Button({
   className?: string;
   type?: "button" | "submit";
 }) {
-  const base =
-    "w-full rounded-[var(--bt-radius-sm)] text-sm font-medium transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed";
+  const base = "bt-btn w-full disabled:cursor-not-allowed";
   const variants: Record<ButtonVariant, string> = {
-    primary:
-      "py-2.5 bg-[var(--bt-accent)] text-white hover:brightness-110 active:scale-[0.99] shadow-[0_4px_20px_rgba(131,110,249,0.25)]",
-    secondary:
-      "py-2 border border-[var(--bt-border-strong)] text-[var(--bt-label)] hover:text-white hover:bg-[var(--bt-card-hover)] hover:border-white/20",
-    ghost:
-      "py-2 text-[var(--bt-muted)] hover:text-white hover:bg-white/[0.04]",
+    primary: "bt-btn-primary py-2.5",
+    secondary: "bt-btn-secondary py-2",
+    ghost: "bt-btn-ghost py-2",
   };
 
   return (
@@ -91,11 +88,8 @@ export function IconButton({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className={`h-8 min-w-8 px-2 rounded-[var(--bt-radius-sm)] text-xs border transition-all ${
-        active
-          ? "border-[var(--bt-accent)] bg-[var(--bt-accent-dim)] text-white"
-          : "border-[var(--bt-border)] text-[var(--bt-muted)] hover:text-white hover:bg-[var(--bt-card-hover)] hover:border-[var(--bt-border-strong)]"
-      } disabled:opacity-30`}
+      className="bt-btn-icon h-8 min-w-8 px-2 rounded-[var(--bt-radius-sm)] text-xs disabled:opacity-30"
+      data-active={active ?? false}
     >
       {children}
     </button>
@@ -176,58 +170,108 @@ export function SelectMenu({
   onChange,
   options,
   compact,
+  hideLabel,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; icon?: ReactNode }[];
   compact?: boolean;
+  hideLabel?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const selected = options.find((o) => o.value === value)?.label ?? value;
+  const [menuRect, setMenuRect] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const selected = options.find((o) => o.value === value);
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) {
+      setMenuRect(null);
+      return;
+    }
+    const update = () => {
+      const rect = triggerRef.current!.getBoundingClientRect();
+      setMenuRect({
+        top: rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
+  const menu =
+    open && menuRect ? (
+      <div
+        ref={menuRef}
+        className="bt-menu bt-menu-portal menu-in perpl-scroll"
+        style={{
+          top: menuRect.top,
+          left: menuRect.left,
+          width: menuRect.width,
+        }}
+        role="listbox"
+      >
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="option"
+            aria-selected={o.value === value}
+            data-active={o.value === value}
+            className="bt-menu-item flex items-center gap-2"
+            onClick={() => {
+              onChange(o.value);
+              setOpen(false);
+            }}
+          >
+            {o.icon}
+            <span className="truncate">{o.label}</span>
+          </button>
+        ))}
+      </div>
+    ) : null;
+
   return (
-    <div ref={ref} className="relative">
-      <FieldLabel>{label}</FieldLabel>
+    <div ref={containerRef} className="relative">
+      {!hideLabel && <FieldLabel>{label}</FieldLabel>}
       <button
+        ref={triggerRef}
         type="button"
         data-open={open}
         onClick={() => setOpen((o) => !o)}
-        className={`bt-trigger ${compact ? "!py-1.5 !text-xs !min-h-8" : ""}`}
+        className={`bt-trigger ${compact ? "!text-xs !h-8 !min-h-8" : ""}`}
       >
-        <span>{selected}</span>
+        <span className="flex items-center gap-2 min-w-0 truncate">
+          {selected?.icon}
+          <span className="truncate">{selected?.label ?? value}</span>
+        </span>
         <Chevron open={open} />
       </button>
-      {open && (
-        <div className="bt-menu menu-in perpl-scroll" role="listbox">
-          {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              role="option"
-              aria-selected={o.value === value}
-              data-active={o.value === value}
-              className="bt-menu-item"
-              onClick={() => {
-                onChange(o.value);
-                setOpen(false);
-              }}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
+      {typeof document !== "undefined" && menu ? createPortal(menu, document.body) : null}
     </div>
   );
 }
@@ -242,17 +286,16 @@ export function SegmentedControl<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <div className="flex p-1 rounded-[var(--bt-radius-sm)] bg-[var(--bt-input)] border border-[var(--bt-border)]">
+    <div className="bt-segment-track" role="tablist">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
+          role="tab"
+          aria-selected={value === o.value}
+          data-active={value === o.value}
           onClick={() => onChange(o.value)}
-          className={`flex-1 py-2 text-xs font-medium rounded-md transition-all ${
-            value === o.value
-              ? "bg-[var(--bt-card)] text-white shadow-sm border border-[var(--bt-border-strong)]"
-              : "text-[var(--bt-muted)] hover:text-[var(--bt-label)]"
-          }`}
+          className="bt-segment-item"
         >
           {o.label}
         </button>
@@ -274,10 +317,11 @@ export function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
+      data-active={active ?? false}
+      className={`bt-chip px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
         active
-          ? "border-[var(--bt-accent)] text-white bg-[var(--bt-accent-dim)] shadow-[0_0_12px_rgba(131,110,249,0.15)]"
-          : "border-[var(--bt-border)] text-[var(--bt-muted)] hover:text-white hover:border-[var(--bt-border-strong)] hover:bg-[var(--bt-card-hover)]"
+          ? "text-white"
+          : "text-[var(--bt-muted)] hover:text-white"
       }`}
     >
       {children}
@@ -302,7 +346,7 @@ export function Toggle({
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={`relative w-9 h-5 rounded-full transition-colors ${
-          checked ? "bg-[var(--bt-accent)]" : "bg-[var(--bt-input)] border border-[var(--bt-border)]"
+          checked ? "bg-[var(--paper-7)] shadow-[var(--btn-metal)]" : "bg-[var(--paper-5)] shadow-[var(--surface-metal-recessed)]"
         }`}
       >
         <span
@@ -326,9 +370,9 @@ export function Alert({
   variant?: "error" | "info" | "success";
 }) {
   const styles = {
-    error: "bg-red-500/10 border-red-500/20 text-[var(--bt-red)]",
-    info: "bg-[var(--bt-accent-dim)] border-[var(--bt-accent)]/20 text-[var(--bt-label)]",
-    success: "bg-green-500/10 border-green-500/20 text-[var(--bt-green)]",
+    error: "bg-red-500/10 text-[var(--bt-red)] border-transparent",
+    info: "bg-[var(--paper-4)] text-[var(--bt-label)] border-transparent shadow-[var(--surface-metal-recessed)]",
+    success: "bg-green-500/10 text-[var(--bt-green)] border-transparent",
   };
   return (
     <p className={`text-xs rounded-[var(--bt-radius-sm)] px-3 py-2 border ${styles[variant]}`}>
@@ -339,8 +383,8 @@ export function Alert({
 
 export function WalletPill({ address }: { address: string }) {
   return (
-    <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-[var(--bt-radius-sm)] bg-[var(--bt-input)] border border-[var(--bt-border)]">
-      <span className="w-2 h-2 rounded-full bg-[var(--bt-green)] shadow-[0_0_8px_var(--bt-green)]" />
+    <div className="bt-wallet-pill flex items-center justify-center gap-2 py-2 px-3 rounded-[var(--bt-radius-sm)]">
+      <span className="w-2 h-2 rounded-full bg-[var(--bt-green)]" />
       <span className="text-xs text-[var(--bt-label)] tabular-nums font-medium">
         {address.slice(0, 6)}…{address.slice(-4)}
       </span>
@@ -356,11 +400,11 @@ export function Badge({
   tone?: "muted" | "accent" | "green" | "red" | "orange";
 }) {
   const tones = {
-    muted: "bg-[var(--bt-input)] text-[var(--bt-muted)] border-[var(--bt-border)]",
-    accent: "bg-[var(--bt-accent-dim)] text-[var(--bt-accent)] border-[var(--bt-accent)]/25",
-    green: "bg-green-500/10 text-[var(--bt-green)] border-green-500/20",
-    red: "bg-red-500/10 text-[var(--bt-red)] border-red-500/20",
-    orange: "bg-orange-500/10 text-[var(--bt-orange)] border-orange-500/20",
+    muted: "bg-[var(--paper-4)] text-[var(--bt-muted)] border-transparent shadow-[var(--surface-metal-recessed)]",
+    accent: "bg-[var(--paper-5)] text-[var(--bt-label)] border-transparent shadow-[var(--surface-metal-recessed)]",
+    green: "bg-green-500/10 text-[var(--bt-green)] border-transparent",
+    red: "bg-red-500/10 text-[var(--bt-red)] border-transparent",
+    orange: "bg-orange-500/10 text-[var(--bt-orange)] border-transparent",
   };
   return (
     <span
@@ -371,6 +415,54 @@ export function Badge({
   );
 }
 
+export function AccordionGroup({ children }: { children: ReactNode }) {
+  return <div className="w-full border-t border-white/[0.03]">{children}</div>;
+}
+
+export function Accordion({
+  title,
+  summary,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  summary?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="accordion" data-open={open}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="accordion-trigger"
+      >
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-white">{title}</p>
+          {summary && (
+            <p
+              className={`text-[10px] text-[var(--bt-muted)] truncate mt-0.5 transition-all duration-200 ease-out ${
+                open ? "max-h-0 opacity-0 mt-0" : "max-h-4 opacity-100"
+              }`}
+            >
+              {summary}
+            </p>
+          )}
+        </div>
+        <Chevron open={open} />
+      </button>
+      <div className="accordion-panel" data-open={open}>
+        <div className="accordion-panel-inner">
+          <div className="accordion-body">{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Chevron({ open }: { open: boolean }) {
   return (
     <svg
@@ -378,7 +470,7 @@ function Chevron({ open }: { open: boolean }) {
       height="14"
       viewBox="0 0 24 24"
       fill="none"
-      className={`text-[var(--bt-muted)] transition-transform ${open ? "rotate-180" : ""}`}
+      className={`text-[var(--bt-muted)] shrink-0 transition-transform duration-200 ease-out ${open ? "rotate-180" : ""}`}
     >
       <path
         d="M6 9l6 6 6-6"

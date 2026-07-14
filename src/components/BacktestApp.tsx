@@ -16,17 +16,18 @@ import type {
 } from "@/types";
 import { runBacktest } from "@/lib/backtest/engine";
 import { computeReplayMetrics, tradesVisibleAt, replayTime } from "@/lib/replay-utils";
-import { commitBacktestOnchain } from "@/lib/commit-onchain";
+import { commitBacktestOnchain, type CommitOnchainInput } from "@/lib/commit-onchain";
 import { MARKETS } from "@/lib/constants";
 import { useWallet } from "@/hooks/useWallet";
+import type { CommitStatus } from "@/types/onchain";
 import { ChartPanel } from "@/components/layout/ChartPanel";
 import { EquityPanel } from "@/components/layout/EquityPanel";
 import { RightDrawer } from "@/components/layout/RightDrawer";
 import { StatsStrip } from "@/components/layout/StatsStrip";
 import { TopBar } from "@/components/layout/TopBar";
-import { OnchainPanel, type CommitStatus } from "@/components/layout/OnchainPanel";
 import { TradeLog } from "@/components/layout/TradeLog";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { MarketIconsProvider } from "@/hooks/useMarketIcons";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type LoadingPhase = "fetching" | "computing" | "committing" | "idle";
@@ -65,13 +66,12 @@ export function BacktestApp() {
 
   const [commitStatus, setCommitStatus] = useState<CommitStatus>("idle");
   const [commitTxHash, setCommitTxHash] = useState<string | null>(null);
-  const [commitId, setCommitId] = useState<string | null>(null);
   const [commitError, setCommitError] = useState<string | null>(null);
-  const [commitConfigHash, setCommitConfigHash] = useState<string | undefined>();
-  const [commitResultHash, setCommitResultHash] = useState<string | undefined>();
+  const [commitsRefreshKey, setCommitsRefreshKey] = useState(0);
 
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startRef = useRef(0);
+  const lastCommitInputRef = useRef<CommitOnchainInput | null>(null);
 
   useEffect(() => {
     if (!loading) {
@@ -99,10 +99,7 @@ export function BacktestApp() {
     setReplayIndex(0);
     setCommitStatus("idle");
     setCommitTxHash(null);
-    setCommitId(null);
     setCommitError(null);
-    setCommitConfigHash(undefined);
-    setCommitResultHash(undefined);
 
     try {
       const url = buildCandlesQuery(marketId, timeframe, period);
@@ -147,29 +144,29 @@ export function BacktestApp() {
 
       setLoadingPhase("committing");
       setCommitStatus("committing");
+      const commitInput: CommitOnchainInput = {
+        walletAddress: wallet.address,
+        marketId,
+        market,
+        timeframe,
+        period,
+        strategy,
+        params,
+        capital,
+        leverage,
+        stopLoss,
+        takeProfit,
+        feeBps: candleData.funding?.takerFeeBps ?? feeBps,
+        enableFunding,
+        fundingRateBps: candleData.funding?.rateBps ?? fundingRateBps,
+        result: btResult,
+      };
+      lastCommitInputRef.current = commitInput;
       try {
-        const committed = await commitBacktestOnchain({
-          walletAddress: wallet.address,
-          marketId,
-          market,
-          timeframe,
-          period,
-          strategy,
-          params,
-          capital,
-          leverage,
-          stopLoss,
-          takeProfit,
-          feeBps: candleData.funding?.takerFeeBps ?? feeBps,
-          enableFunding,
-          fundingRateBps: candleData.funding?.rateBps ?? fundingRateBps,
-          result: btResult,
-        });
+        const committed = await commitBacktestOnchain(commitInput);
         setCommitStatus("success");
         setCommitTxHash(committed.txHash);
-        setCommitId(committed.commitId);
-        setCommitConfigHash(committed.configHash);
-        setCommitResultHash(committed.resultHash);
+        setCommitsRefreshKey((k) => k + 1);
       } catch (e) {
         setCommitStatus("error");
         setCommitError(e instanceof Error ? e.message : "Onchain commit failed");
@@ -197,6 +194,24 @@ export function BacktestApp() {
     fundingRateBps,
   ]);
 
+  const retryCommit = useCallback(async () => {
+    const input = lastCommitInputRef.current;
+    if (!input || !wallet.address) return;
+
+    setCommitStatus("committing");
+    setCommitError(null);
+    setCommitTxHash(null);
+    try {
+      const committed = await commitBacktestOnchain(input);
+      setCommitStatus("success");
+      setCommitTxHash(committed.txHash);
+      setCommitsRefreshKey((k) => k + 1);
+    } catch (e) {
+      setCommitStatus("error");
+      setCommitError(e instanceof Error ? e.message : "Onchain commit failed");
+    }
+  }, [wallet.address]);
+
   const toggleReplay = () => {
     setShowReplay((prev) => {
       if (prev) {
@@ -204,7 +219,7 @@ export function BacktestApp() {
         return false;
       }
       setReplayIndex(0);
-      setReplayPlaying(false);
+      setReplayPlaying(true);
       return true;
     });
   };
@@ -230,16 +245,11 @@ export function BacktestApp() {
   }, [result, showReplay, sliceEnd, candles]);
 
   return (
+    <MarketIconsProvider>
     <div className="min-h-screen flex bg-[var(--bt-bg)] text-[var(--bt-text)]">
       <LoadingOverlay active={loading} phase={loadingPhase} elapsedMs={elapsedMs} />
 
-      {/* Main content area */}
       <div className="flex-1 min-w-0 flex flex-col min-h-screen">
-        <header className="shrink-0 px-5 py-4 border-b border-[var(--bt-border)] bg-[var(--bt-bg)]">
-          <h1 className="text-xl font-bold text-white tracking-tight">Perp Backtest Bench</h1>
-          <p className="text-xs text-[var(--bt-muted)] mt-1">Simulate strategies · commit results on Monad</p>
-        </header>
-
         <TopBar
           marketId={marketId}
           timeframe={timeframe}
@@ -248,7 +258,7 @@ export function BacktestApp() {
           candleCount={candles.length}
         />
 
-        <div className="flex-1 min-h-0 flex flex-col overflow-y-auto perpl-scroll">
+        <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto perpl-scroll p-2">
           <ChartPanel
             candles={candles}
             result={result}
@@ -265,17 +275,6 @@ export function BacktestApp() {
           />
 
           {displayMetrics && <StatsStrip metrics={displayMetrics} fmt={fmt} />}
-          {wallet.connected && (
-            <OnchainPanel
-              status={commitStatus}
-              configHash={commitConfigHash}
-              resultHash={commitResultHash}
-              commitId={commitId}
-              txHash={commitTxHash}
-              error={commitError}
-              walletAddress={wallet.address}
-            />
-          )}
           {result && <EquityPanel equity={result.equity} sliceEnd={sliceEnd} />}
           {visibleTrades.length > 0 && (
             <TradeLog trades={visibleTrades} fmt={fmt} replayActive={showReplay} />
@@ -283,7 +282,6 @@ export function BacktestApp() {
         </div>
       </div>
 
-      {/* Fixed right drawer — full viewport height */}
       <RightDrawer
         marketId={marketId}
         onMarketChange={setMarketId}
@@ -319,7 +317,13 @@ export function BacktestApp() {
         walletConnecting={wallet.connecting}
         walletError={wallet.error}
         onConnectWallet={wallet.connect}
+        commitStatus={commitStatus}
+        commitError={commitError}
+        commitTxHash={commitTxHash}
+        onRetryCommit={retryCommit}
+        commitsRefreshKey={commitsRefreshKey}
       />
     </div>
+    </MarketIconsProvider>
   );
 }

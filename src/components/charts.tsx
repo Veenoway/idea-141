@@ -20,12 +20,12 @@ import type { BacktestResult, Candle, StrategyParams, StrategyType } from "@/typ
 import { bollinger, ema, macd, rsi, sma, stochastic } from "@/lib/indicators";
 import { donchian } from "@/lib/backtest/strategies";
 import { sliceByEnd, sliceCandles } from "@/lib/chart-utils";
+import { CHART_GRID, CHART_GRID_SUB, CHART_SURFACE, CHART_TEXT } from "@/lib/chart-theme";
 
-const CHART_BG = "#17171e";
-const CHART_PANEL = "#17171e";
-const GRID = "rgba(255, 140, 0, 0.08)";
-const GRID_SUB = "#2a2d35";
-const TEXT = "#94a3b8";
+const GRID = CHART_GRID;
+const GRID_SUB = CHART_GRID_SUB;
+const TEXT = CHART_TEXT;
+const CHART_BG = CHART_SURFACE;
 const ACCENT = "#836ef9";
 const ORANGE = "#ff8c00";
 const BLUE = "#007aff";
@@ -217,7 +217,7 @@ export function RsiChart({
     const visible = sliceCandles(candles, sliceEnd);
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: CHART_PANEL },
+        background: { type: ColorType.Solid, color: CHART_BG },
         textColor: TEXT,
       },
       grid: { vertLines: { color: GRID_SUB }, horzLines: { color: GRID } },
@@ -279,7 +279,7 @@ export function MacdChart({
     const visible = sliceCandles(candles, sliceEnd);
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: CHART_PANEL },
+        background: { type: ColorType.Solid, color: CHART_BG },
         textColor: TEXT,
       },
       grid: { vertLines: { color: GRID_SUB }, horzLines: { color: GRID } },
@@ -354,7 +354,7 @@ export function StochasticChart({
     const visible = sliceCandles(candles, sliceEnd);
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: CHART_PANEL },
+        background: { type: ColorType.Solid, color: CHART_BG },
         textColor: TEXT,
       },
       grid: { vertLines: { color: GRID_SUB }, horzLines: { color: GRID } },
@@ -420,7 +420,7 @@ export function EquityChart({
     const visible = sliceByEnd(equity, sliceEnd);
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: CHART_PANEL },
+        background: { type: ColorType.Solid, color: CHART_BG },
         textColor: TEXT,
       },
       grid: { vertLines: { color: GRID_SUB }, horzLines: { color: GRID } },

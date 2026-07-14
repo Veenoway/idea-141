@@ -11,7 +11,8 @@ import {
 } from "@/lib/commit-hash";
 import { BACKTEST_REGISTRY_ADDRESS } from "@/lib/deployed";
 import type { BacktestResult } from "@/types";
-import { createPublicClient, createWalletClient, custom, http, type Address, type Hash } from "viem";
+import { createMonadPublicClient } from "@/lib/rpc";
+import { createWalletClient, custom, type Address, type Hash } from "viem";
 
 export function getRegistryAddress(): `0x${string}` | null {
   const envAddr = process.env.NEXT_PUBLIC_BACKTEST_REGISTRY_ADDRESS;
@@ -55,10 +56,7 @@ export async function commitBacktestOnchain(
     transport: custom(provider),
   });
 
-  const publicClient = createPublicClient({
-    chain: monad,
-    transport: http(),
-  });
+  const publicClient = createMonadPublicClient();
 
   const txHash = await walletClient.writeContract({
     address: registryAddress,

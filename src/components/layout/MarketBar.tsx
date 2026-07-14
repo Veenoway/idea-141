@@ -56,7 +56,7 @@ export function MarketBar({
         ))}
       </div>
 
-      <div className="flex items-center gap-5 px-4 py-2 text-xs flex-wrap">
+      <div className="flex items-center gap-5 px-3 py-2 text-xs flex-wrap">
         <div className="flex items-baseline gap-2 mr-2">
           <span className="text-base font-semibold text-white">{market?.name ?? "—"}</span>
           {last && (

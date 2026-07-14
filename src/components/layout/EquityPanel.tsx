@@ -1,6 +1,5 @@
 "use client";
 
-import { Panel } from "@/components/ui";
 import { EquityChart } from "@/components/charts";
 
 interface Props {
@@ -10,11 +9,10 @@ interface Props {
 
 export function EquityPanel({ equity, sliceEnd }: Props) {
   return (
-    <div className="shrink-0 p-4 border-b border-[var(--bt-border)] bg-[var(--bt-bg)]">
-      <h2 className="text-sm font-medium text-[var(--bt-label)] mb-3">Equity Curve</h2>
-      <Panel className="h-[180px] p-2">
+    <section className="bt-main-panel p-3 shrink-0">
+      <div className="h-[180px] bt-chart-well">
         <EquityChart equity={equity} sliceEnd={sliceEnd} />
-      </Panel>
-    </div>
+      </div>
+    </section>
   );
 }

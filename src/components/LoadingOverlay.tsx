@@ -31,8 +31,8 @@ export function LoadingOverlay({ active, phase, elapsedMs, message }: Props) {
   const seconds = (elapsedMs / 1000).toFixed(1);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md">
-      <Panel className="px-8 py-6 max-w-sm w-full mx-4 shadow-[var(--bt-shadow)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-md">
+      <Panel className="px-8 py-6 max-w-sm w-full mx-4">
         <div className="flex flex-col items-center gap-5">
           <Spinner />
           <div className="text-center w-full">
@@ -42,8 +42,8 @@ export function LoadingOverlay({ active, phase, elapsedMs, message }: Props) {
             <p className="text-[var(--bt-muted)] text-sm mt-1.5">{PHASE_HINTS[phase]}</p>
           </div>
           <div className="w-full">
-            <div className="h-1.5 bg-[var(--bt-input)] rounded-full overflow-hidden border border-[var(--bt-border)]">
-              <div className="h-full bg-[var(--bt-accent)] rounded-full loading-bar" />
+            <div className="h-1.5 bg-[var(--paper-4)] rounded-full overflow-hidden shadow-[var(--surface-metal-recessed)]">
+              <div className="h-full bg-[var(--paper-7)] rounded-full loading-bar" />
             </div>
             <p className="text-xs text-[var(--bt-muted)] text-center mt-2.5 tabular-nums">{seconds}s</p>
           </div>
@@ -56,10 +56,10 @@ export function LoadingOverlay({ active, phase, elapsedMs, message }: Props) {
 function Spinner() {
   return (
     <div className="relative w-14 h-14">
-      <div className="absolute inset-0 rounded-full border-2 border-[var(--bt-border)]" />
-      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-[var(--bt-accent)] animate-spin" />
+      <div className="absolute inset-0 rounded-full border-2 border-[var(--paper-border)]" />
+      <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/70 animate-spin" />
       <div
-        className="absolute inset-2 rounded-full border-2 border-transparent border-b-[var(--bt-accent-glow)] animate-spin"
+        className="absolute inset-2 rounded-full border-2 border-transparent border-b-white/30 animate-spin"
         style={{ animationDirection: "reverse", animationDuration: "1.2s" }}
       />
     </div>

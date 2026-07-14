@@ -1,10 +1,11 @@
 "use client";
 
+import { MarketIcon } from "@/components/MarketIcon";
 import { MARKETS } from "@/lib/constants";
-import { Badge } from "@/components/ui";
 import type { PeriodConfig } from "@/lib/period";
 import { resolvePeriodMs } from "@/lib/period";
 import type { CandleFetchResult, Timeframe } from "@/types";
+import type { ReactNode } from "react";
 
 interface Props {
   marketId: number;
@@ -23,37 +24,62 @@ export function TopBar({ marketId, timeframe, period, data, candleCount }: Props
       : `${period.fromDate} → ${period.toDate}`;
 
   return (
-    <div className="shrink-0 flex items-center gap-3 px-5 py-3 border-b border-[var(--bt-border)] bg-[var(--bt-bg)] text-sm flex-wrap">
-      <BarPill label="Market" value={market} />
-      <BarPill label="Timeframe" value={timeframe.toUpperCase()} />
-      <BarPill label="Period" value={periodLabel} />
-      {data && (
-        <BarPill
-          label="Source"
-          value={data.source === "perpl" ? "Perpl API" : "Mobula"}
-          badge={data.source === "perpl" ? "green" : "orange"}
+    <header className="shrink-0 px-3 py-3 border-b border-white/[0.03] bg-[var(--paper-2)]">
+      <div className="flex items-center gap-4 flex-wrap">
+        <h1 className="text-lg font-bold text-white tracking-tight whitespace-nowrap shrink-0">
+          Perp Backtest Bench
+        </h1>
+
+        <div className="hidden sm:block w-px h-10 bg-white/[0.06] shrink-0" aria-hidden />
+
+        <MetaItem
+          label="Market"
+          value={market}
+          icon={<MarketIcon symbol={market} size={16} />}
         />
-      )}
-      {candleCount > 0 && <BarPill label="Candles" value={String(candleCount)} />}
-    </div>
+        <MetaDivider />
+        <MetaItem label="Timeframe" value={timeframe.toUpperCase()} />
+        <MetaDivider />
+        <MetaItem label="Period" value={periodLabel} />
+        {data && (
+          <>
+            <MetaDivider />
+            <MetaItem
+              label="Source"
+              value={data.source === "perpl" ? "Perpl API" : "Mobula"}
+            />
+          </>
+        )}
+        {candleCount > 0 && (
+          <>
+            <MetaDivider />
+            <MetaItem label="Candles" value={candleCount.toLocaleString()} />
+          </>
+        )}
+      </div>
+    </header>
   );
 }
 
-function BarPill({
+function MetaDivider() {
+  return <div className="hidden md:block w-px h-10 bg-white/[0.06] shrink-0" aria-hidden />;
+}
+
+function MetaItem({
   label,
   value,
-  badge,
+  icon,
 }: {
   label: string;
   value: string;
-  badge?: "green" | "orange";
+  icon?: ReactNode;
 }) {
   return (
-    <div className="bt-panel px-3 py-2 min-w-[88px]">
-      <p className="text-[10px] uppercase tracking-wider text-[var(--bt-muted)] mb-0.5">{label}</p>
-      <div className="flex items-center gap-2">
-        <p className="font-semibold tabular-nums text-white text-sm">{value}</p>
-        {badge && <Badge tone={badge}>{badge === "green" ? "Live" : "Fallback"}</Badge>}
+    <div className="flex flex-col gap-0.5 min-w-0 shrink-0">
+      <span className="text-[10px] text-[var(--bt-muted)] whitespace-nowrap">{label}</span>
+      <div className="flex items-center gap-1.5 min-w-0">
+        {icon}
+        <span className="font-semibold tabular-nums text-white text-sm whitespace-nowrap">{value}</span>
       </div>
     </div>
   );

@@ -2,4 +2,6 @@
 export const BACKTEST_REGISTRY_ADDRESS =
   "0x12D47fC74f4Cc7625b8d34E79fdA173e625b6fe0" as const;
 
+export const BACKTEST_REGISTRY_DEPLOY_BLOCK = BigInt(87642465);
+
 export const MONAD_CHAIN_ID = 143 as const;

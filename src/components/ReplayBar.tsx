@@ -1,8 +1,8 @@
 "use client";
 
 import type { BacktestResult, Candle, ReplayEvent } from "@/types";
-import { Badge, IconButton, SelectMenu } from "@/components/ui";
-import { useEffect, useRef, useState } from "react";
+import { IconButton, SelectMenu } from "@/components/ui";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 interface Props {
   candles: Candle[];
@@ -13,7 +13,8 @@ interface Props {
   onPlayingChange: (p: boolean) => void;
 }
 
-const SPEEDS = [0.5, 1, 2, 4, 8];
+const SPEEDS = [0.5, 1, 2, 3, 4, 8];
+const DEFAULT_SPEED_IDX = String(SPEEDS.indexOf(3));
 
 export function ReplayBar({
   candles,
@@ -23,7 +24,7 @@ export function ReplayBar({
   playing,
   onPlayingChange,
 }: Props) {
-  const [speedIdx, setSpeedIdx] = useState("1");
+  const [speedIdx, setSpeedIdx] = useState(DEFAULT_SPEED_IDX);
   const indexRef = useRef(index);
   indexRef.current = index;
 
@@ -48,12 +49,12 @@ export function ReplayBar({
   }, [playing, speed, max, onIndexChange, onPlayingChange]);
 
   const setIdx = (i: number) => onIndexChange(Math.max(0, Math.min(max, i)));
+  const replayPct = max > 0 ? (index / max) * 100 : 0;
 
   return (
-    <div className="shrink-0 bg-[var(--bt-card)] border-b border-[var(--bt-border)] px-4 py-3 space-y-3">
+    <div className="space-y-2.5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 text-xs flex-wrap">
-          <Badge tone="accent">Replay</Badge>
           <span className="text-[var(--bt-muted)]">
             Bar <span className="text-white tabular-nums font-medium">{index + 1}</span>
             <span className="text-[var(--bt-muted)]"> / {candles.length}</span>
@@ -71,15 +72,16 @@ export function ReplayBar({
           <button
             type="button"
             onClick={() => onPlayingChange(!playing)}
-            className="h-8 px-4 rounded-[var(--bt-radius-sm)] text-xs font-semibold bg-[var(--bt-accent)] text-white min-w-[76px] hover:brightness-110 transition-all shadow-[0_4px_16px_rgba(131,110,249,0.2)]"
+            className="bt-btn bt-btn-secondary h-8 px-3 !w-auto min-w-[72px] !py-0 text-xs"
           >
             {playing ? "Pause" : "Play"}
           </button>
           <IconButton title="Next" disabled={index >= max} onClick={() => setIdx(index + 1)}>▶</IconButton>
           <IconButton title="End" onClick={() => setIdx(max)}>⏭</IconButton>
-          <div className="min-w-[76px]">
+          <div className="w-[72px]">
             <SelectMenu
               label=""
+              hideLabel
               compact
               value={speedIdx}
               onChange={setSpeedIdx}
@@ -98,11 +100,12 @@ export function ReplayBar({
           onPlayingChange(false);
           setIdx(Number(e.target.value));
         }}
-        className="w-full accent-[var(--bt-accent)] h-1.5 cursor-pointer rounded-full"
+        className="replay-slider w-full"
+        style={{ "--replay-pct": `${replayPct}%` } as CSSProperties}
       />
 
       {visibleEvents.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto perpl-scroll pb-0.5">
+        <div className="flex gap-1.5 overflow-x-auto perpl-scroll pb-0.5">
           {[...visibleEvents].reverse().slice(0, 6).map((e, i) => (
             <EventChip key={`${e.time}-${e.type}-${i}`} event={e} />
           ))}
@@ -113,17 +116,19 @@ export function ReplayBar({
 }
 
 function EventChip({ event }: { event: ReplayEvent }) {
-  const tones: Record<string, "green" | "red" | "muted" | "accent" | "orange"> = {
-    long: "green",
-    short: "red",
-    close: "muted",
-    stop_loss: "orange",
-    take_profit: "accent",
-    funding: "accent",
+  const labelColors: Record<string, string> = {
+    long: "text-[var(--bt-green)]",
+    short: "text-[var(--bt-red)]",
+    close: "text-[var(--bt-label)]",
+    stop_loss: "text-[var(--bt-orange)]",
+    take_profit: "text-[var(--bt-label)]",
+    funding: "text-[var(--bt-muted)]",
   };
+
   return (
-    <Badge tone={tones[event.type] ?? "muted"}>
-      {new Date(event.time).toLocaleTimeString()} · {event.label}
-    </Badge>
+    <span className="bt-chip inline-flex items-center px-2 py-0.5 rounded-[var(--bt-radius-sm)] text-[10px] tabular-nums whitespace-nowrap text-[var(--bt-muted)]">
+      {new Date(event.time).toLocaleTimeString()} ·{" "}
+      <span className={labelColors[event.type] ?? "text-[var(--bt-label)]"}>{event.label}</span>
+    </span>
   );
 }
