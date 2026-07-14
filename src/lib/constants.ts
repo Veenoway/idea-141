@@ -3,6 +3,12 @@ import type { MarketOption, Timeframe, StrategyType } from "@/types";
 export const PERPL_API_URL =
   process.env.PERPL_API_URL ?? "https://app.perpl.xyz/api";
 
+export const PERPL_APP_URL = "https://app.perpl.xyz";
+
+export function perplTradeUrl(symbol: string): string {
+  return `${PERPL_APP_URL}/trade/${encodeURIComponent(symbol.toUpperCase())}`;
+}
+
 export const TIMEFRAME_SECONDS: Record<Timeframe, number> = {
   "1m": 60,
   "5m": 300,

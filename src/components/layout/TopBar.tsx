@@ -1,7 +1,7 @@
 "use client";
 
 import { MarketIcon } from "@/components/MarketIcon";
-import { MARKETS } from "@/lib/constants";
+import { MARKETS, perplTradeUrl } from "@/lib/constants";
 import type { PeriodConfig } from "@/lib/period";
 import { resolvePeriodMs } from "@/lib/period";
 import type { CandleFetchResult, Timeframe } from "@/types";
@@ -57,6 +57,15 @@ export function TopBar({ marketId, timeframe, period, data, candleCount }: Props
             <MetaItem label="Candles" value={candleCount.toLocaleString()} />
           </>
         )}
+
+        <a
+          href={perplTradeUrl(market)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ml-auto shrink-0 bt-btn bt-btn-primary !w-auto !py-1.5 !px-3 !text-xs no-underline"
+        >
+          Trade {market} on Perpl ↗
+        </a>
       </div>
     </header>
   );
