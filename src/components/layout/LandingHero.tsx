@@ -44,7 +44,7 @@ export function LandingHero() {
           />
           <div className="text-left">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--bt-muted)] font-semibold">
-              Perpl · Monad
+              Monad
             </p>
             <h2 className="text-2xl md:text-3xl font-bold text-white tracking-tight">
               IDEA #141
@@ -55,20 +55,12 @@ export function LandingHero() {
         <p className="text-[var(--bt-label)] text-sm md:text-base leading-relaxed max-w-xl">
           Backtest perpetual strategies on{" "}
           <span className="text-white font-medium">real Perpl market data</span> before
-          risking capital. Simulate leverage, fees, and funding — then{" "}
+          risking capital. Simulate leverage, fees, and funding, then{" "}
           <span className="text-white font-medium">commit a proof onchain</span> that you
           actually tested it.
         </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
-          {FEATURES.map((f) => (
-            <span key={f} className="bt-chip px-2.5 py-1 rounded-md text-[11px] text-[var(--bt-muted)]">
-              {f}
-            </span>
-          ))}
-        </div>
-
-        <div className="w-full mt-8 grid sm:grid-cols-2 gap-3 text-left">
+        <div className="w-full mt-5 grid sm:grid-cols-2 gap-3 text-left">
           {STEPS.map((s) => (
             <div key={s.n} className="bt-panel rounded-[var(--bt-radius-sm)] p-4">
               <span className="text-[10px] font-mono text-[var(--bt-purple-light)] tabular-nums">
@@ -80,7 +72,7 @@ export function LandingHero() {
           ))}
         </div>
 
-        <div className="w-full mt-6 bt-panel rounded-[var(--bt-radius-sm)] p-4 text-left">
+        <div className="w-full mt-3 bt-panel rounded-[var(--bt-radius-sm)] p-4 text-left">
           <p className="text-[10px] uppercase tracking-widest text-[var(--bt-muted)] font-semibold mb-2">
             Strategies included
           </p>
@@ -96,9 +88,6 @@ export function LandingHero() {
           </div>
         </div>
 
-        <p className="text-[10px] text-[var(--bt-muted)] leading-relaxed mt-8 max-w-sm">
-          Configure strategy and risk in the drawer on the right, then run from there.
-        </p>
       </div>
     </section>
   );
