@@ -63,6 +63,7 @@ export function TradeLog({ trades, fmt, replayActive }: Props) {
               <th className="text-left uppercase tracking-wide text-[10px]">Side</th>
               <th className="text-right uppercase tracking-wide text-[10px]">Entry</th>
               <th className="text-right uppercase tracking-wide text-[10px]">Exit</th>
+              <th className="text-right uppercase tracking-wide text-[10px]">Size</th>
               <th className="text-right uppercase tracking-wide text-[10px]">PnL</th>
               <th className="text-right uppercase tracking-wide text-[10px]">Reason</th>
             </tr>
@@ -85,6 +86,7 @@ export function TradeLog({ trades, fmt, replayActive }: Props) {
                 </td>
                 <td className="text-right tabular-nums">${fmt(t.entryPrice)}</td>
                 <td className="text-right tabular-nums">${fmt(t.exitPrice)}</td>
+                <td className="text-right tabular-nums text-[var(--bt-muted)]">{fmt(t.size, 4)}</td>
                 <td
                   className={`text-right font-medium tabular-nums ${
                     t.pnl >= 0 ? "text-green-500" : "text-red-500"

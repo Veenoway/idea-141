@@ -20,6 +20,25 @@ export const backtestRegistryAbi = [
     outputs: [{ type: "uint256" }],
   },
   {
+    type: "function",
+    name: "commitsByUser",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ type: "uint256[]" }],
+  },
+  {
+    type: "function",
+    name: "records",
+    stateMutability: "view",
+    inputs: [{ name: "commitId", type: "uint256" }],
+    outputs: [
+      { name: "committer", type: "address" },
+      { name: "configHash", type: "bytes32" },
+      { name: "resultHash", type: "bytes32" },
+      { name: "committedAt", type: "uint40" },
+    ],
+  },
+  {
     type: "event",
     name: "ResultCommitted",
     inputs: [

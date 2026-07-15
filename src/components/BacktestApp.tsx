@@ -2,23 +2,21 @@
 
 import { DEFAULT_STRATEGY_PARAMS, TIMEFRAME_SECONDS, isPairStrategy, MARKETS } from "@/lib/constants";
 import {
-  buildCandlesQuery,
   defaultPeriodConfig,
   type PeriodConfig,
 } from "@/lib/period";
 import type {
-  BacktestConfig,
   BacktestResult,
   CandleFetchResult,
   StrategyParams,
   StrategyType,
   Timeframe,
 } from "@/types";
-import { runBacktest } from "@/lib/backtest/engine";
-import { alignPairCandles } from "@/lib/backtest/pair-utils";
-import { runPairBacktest } from "@/lib/backtest/pair-engine";
 import { computeReplayMetrics, findReplayStartIndex, tradesVisibleAt, replayTime } from "@/lib/replay-utils";
 import { commitBacktestOnchain, type CommitOnchainInput } from "@/lib/commit-onchain";
+import { saveCommitSnapshot, type StoredCommitSnapshot } from "@/lib/commit-snapshots";
+import { saveLocalCommit } from "@/lib/commit-index";
+import { executeBacktest, type BacktestRunInput } from "@/lib/run-backtest";
 import { explorerTxUrl } from "@/lib/chain";
 import { useWallet } from "@/hooks/useWallet";
 import { ToastProvider, useToast } from "@/hooks/useToast";
@@ -135,6 +133,9 @@ function BacktestAppInner() {
     toast.error(wallet.error);
   }, [wallet.error, toast]);
 
+  const lastCandleDataRef = useRef<CandleFetchResult | null>(null);
+  const lastPairMarketIdRef = useRef<number | undefined>(undefined);
+
   const retryCommit = useCallback(async () => {
     const input = lastCommitInputRef.current;
     if (!input || !wallet.address) {
@@ -143,6 +144,8 @@ function BacktestAppInner() {
     }
 
     setCommitStatus("committing");
+    setLoading(true);
+    setLoadingPhase("committing");
     toast.showLoading(LOADING_LABELS.committing, LOADING_HINTS.committing);
     startLoadingTimer();
 
@@ -151,6 +154,21 @@ function BacktestAppInner() {
       stopLoadingTimer();
       toast.hideLoading();
       setCommitStatus("success");
+      setData(lastCandleDataRef.current);
+      setResult(input.result);
+      saveCommitSnapshot(input, lastPairMarketIdRef.current);
+      if (wallet.address && lastCandleDataRef.current) {
+        saveLocalCommit(wallet.address, {
+          commitId: committed.commitId,
+          txHash: committed.txHash,
+          strategy: input.strategy,
+          market: input.market,
+          pnlUsd: input.result.metrics.totalPnl,
+          committedAt: Math.floor(Date.now() / 1000),
+          configHash: committed.configHash,
+          resultHash: committed.resultHash,
+        });
+      }
       toast.success("Backtest committed on Monad", {
         href: explorerTxUrl(committed.txHash),
         hrefLabel: "View tx",
@@ -164,8 +182,139 @@ function BacktestAppInner() {
       toast.error(message, {
         action: { label: "Retry", onClick: () => void retryCommit() },
       });
+    } finally {
+      setLoading(false);
+      setLoadingPhase("idle");
     }
   }, [wallet.address, toast, startLoadingTimer, stopLoadingTimer]);
+
+  const applyRunInput = useCallback((input: BacktestRunInput) => {
+    setMarketId(input.marketId);
+    setPairMarketId(input.pairMarketId);
+    setTimeframe(input.timeframe);
+    setPeriod(input.period);
+    setStrategy(input.strategy);
+    setParams(input.params);
+    setCapital(input.capital);
+    setLeverage(input.leverage);
+    setStopLoss(input.stopLoss);
+    setTakeProfit(input.takeProfit);
+    setFeeBps(input.feeBps);
+    setEnableFunding(input.enableFunding);
+    setFundingRateBps(input.fundingRateBps);
+  }, []);
+
+  const buildRunInput = useCallback(
+    (): BacktestRunInput => ({
+      marketId,
+      pairMarketId,
+      timeframe,
+      period,
+      strategy,
+      params,
+      capital,
+      leverage,
+      stopLoss,
+      takeProfit,
+      feeBps,
+      enableFunding,
+      fundingRateBps,
+    }),
+    [
+      marketId,
+      pairMarketId,
+      timeframe,
+      period,
+      strategy,
+      params,
+      capital,
+      leverage,
+      stopLoss,
+      takeProfit,
+      feeBps,
+      enableFunding,
+      fundingRateBps,
+    ]
+  );
+
+  const finishBacktestView = useCallback(
+    (candleData: CandleFetchResult, btResult: BacktestResult, nextFeeBps: number, nextFundingBps: number) => {
+      setFeeBps(nextFeeBps);
+      setFundingRateBps(nextFundingBps);
+      setData(candleData);
+      setResult(btResult);
+      setShowReplay(false);
+      setReplayPlaying(false);
+      setReplayIndex(0);
+    },
+    []
+  );
+
+  const runFromSnapshot = useCallback(
+    async (snapshot: StoredCommitSnapshot) => {
+      if (runInFlightRef.current) return;
+      runInFlightRef.current = true;
+      const runSeq = ++runSeqRef.current;
+
+      const pairId =
+        snapshot.pairMarketId ??
+        (() => {
+          if (!snapshot.market.includes("/")) return pairMarketId;
+          const [, quote] = snapshot.market.split("/");
+          return MARKETS.find((m) => m.name === quote)?.id ?? pairMarketId;
+        })();
+
+      const runInput: BacktestRunInput = {
+        marketId: snapshot.marketId,
+        pairMarketId: pairId,
+        timeframe: snapshot.timeframe,
+        period: snapshot.period,
+        strategy: snapshot.strategy,
+        params: snapshot.params,
+        capital: snapshot.capital,
+        leverage: snapshot.leverage,
+        stopLoss: snapshot.stopLoss,
+        takeProfit: snapshot.takeProfit,
+        feeBps: snapshot.feeBps,
+        enableFunding: snapshot.enableFunding,
+        fundingRateBps: snapshot.fundingRateBps,
+      };
+
+      applyRunInput(runInput);
+      setLoading(true);
+      setLoadingPhase("fetching");
+      setShowReplay(false);
+      setReplayPlaying(false);
+      setReplayIndex(0);
+      setCommitStatus("idle");
+
+      try {
+        setLoadingPhase("computing");
+        const { candleData, btResult, feeBps: fb, fundingRateBps: frb } = await executeBacktest(runInput);
+        if (runSeq !== runSeqRef.current) return;
+        finishBacktestView(candleData, btResult, fb, frb);
+        toast.success(`Re-ran backtest · ${snapshot.strategy} · ${snapshot.market}`);
+      } catch (e) {
+        if (runSeq !== runSeqRef.current) return;
+        toast.error(e instanceof Error ? e.message : "Backtest failed");
+        setResult(null);
+      } finally {
+        if (runSeq === runSeqRef.current) {
+          runInFlightRef.current = false;
+          setLoading(false);
+          setLoadingPhase("idle");
+        }
+      }
+    },
+    [applyRunInput, finishBacktestView, pairMarketId, toast]
+  );
+
+  const handleCommitSelect = useCallback(
+    (snapshot: StoredCommitSnapshot) => {
+      void runFromSnapshot(snapshot);
+    },
+    [runFromSnapshot]
+  );
 
   const run = useCallback(async () => {
     if (!wallet.address) {
@@ -179,109 +328,23 @@ function BacktestAppInner() {
 
     setLoading(true);
     setLoadingPhase("fetching");
-    setShowReplay(false);
-    setReplayPlaying(false);
-    setReplayIndex(0);
     setCommitStatus("idle");
 
+    let reachedCommit = false;
+
     try {
-      const pairMode = isPairStrategy(strategy);
-      if (pairMode && pairMarketId === marketId) {
-        throw new Error("Pick two different assets for the pair (e.g. BTC / ETH).");
-      }
+      setLoadingPhase("computing");
+      const runInput = buildRunInput();
 
-      const url = buildCandlesQuery(marketId, timeframe, period);
-      const quoteUrl = pairMode ? buildCandlesQuery(pairMarketId, timeframe, period) : null;
+      const { candleData, btResult, market, feeBps: fb, fundingRateBps: frb } =
+        await executeBacktest(runInput);
 
-      const fetches = [fetch(url), ...(quoteUrl ? [fetch(quoteUrl)] : [])] as const;
-      const responses = await Promise.all(fetches);
-      const bodies = await Promise.all(responses.map((r) => r.json()));
+      if (runSeq !== runSeqRef.current) return;
 
-      const baseRes = bodies[0];
-      if (!responses[0].ok) {
-        throw new Error(baseRes.error ?? `Fetch failed (${responses[0].status})`);
-      }
+      lastCandleDataRef.current = candleData;
+      lastPairMarketIdRef.current = isPairStrategy(strategy) ? pairMarketId : undefined;
 
-      let candleData: CandleFetchResult = baseRes;
-
-      const config: BacktestConfig = {
-        initialCapital: capital,
-        leverage,
-        stopLossPercent: stopLoss,
-        takeProfitPercent: takeProfit,
-        takerFeeBps: candleData.funding?.takerFeeBps ?? feeBps,
-        strategy,
-        strategyParams: params,
-        enableFunding,
-        fundingRateBps: candleData.funding?.rateBps ?? fundingRateBps,
-        fundingIntervalSec: candleData.funding?.intervalSec ?? 3600,
-      };
-
-      let btResult: BacktestResult;
-
-      if (pairMode) {
-        const quoteRes = bodies[1];
-        if (!responses[1].ok) {
-          throw new Error(quoteRes.error ?? `Quote fetch failed (${responses[1].status})`);
-        }
-
-        const baseName = MARKETS.find((m) => m.id === marketId)?.name ?? "BASE";
-        const quoteName = MARKETS.find((m) => m.id === pairMarketId)?.name ?? "QUOTE";
-        const series = alignPairCandles(baseRes.candles, quoteRes.candles);
-
-        if (series.ratio.length < 50) {
-          throw new Error("Not enough aligned pair data for backtest (min 50 bars).");
-        }
-
-        if (quoteRes.funding && !candleData.funding) {
-          config.takerFeeBps = quoteRes.funding.takerFeeBps;
-          config.fundingRateBps = quoteRes.funding.rateBps;
-          config.fundingIntervalSec = quoteRes.funding.intervalSec;
-        }
-
-        candleData = {
-          candles: series.ratio,
-          source: baseRes.source === "perpl" && quoteRes.source === "perpl" ? "perpl" : "mobula",
-          market: `${baseName}/${quoteName}`,
-          funding: candleData.funding ?? quoteRes.funding,
-          pair: {
-            baseMarket: baseName,
-            quoteMarket: quoteName,
-            baseMarketId: marketId,
-            quoteMarketId: pairMarketId,
-          },
-        };
-
-        setLoadingPhase("computing");
-        await new Promise((r) => setTimeout(r, 30));
-
-        btResult = runPairBacktest({
-          series,
-          config,
-          baseSymbol: baseName,
-          quoteSymbol: quoteName,
-        });
-      } else {
-        if (candleData.candles.length < 50) {
-          throw new Error("Not enough candle data for backtest (min 50)");
-        }
-
-        setLoadingPhase("computing");
-        await new Promise((r) => setTimeout(r, 30));
-
-        btResult = runBacktest(candleData.candles, config);
-      }
-
-      if (candleData.funding) {
-        setFeeBps(candleData.funding.takerFeeBps);
-        setFundingRateBps(candleData.funding.rateBps);
-      }
-
-      setData(candleData);
-      setResult(btResult);
-
-      const market = candleData.market;
-
+      reachedCommit = true;
       setLoadingPhase("committing");
       setCommitStatus("committing");
 
@@ -297,35 +360,48 @@ function BacktestAppInner() {
         leverage,
         stopLoss,
         takeProfit,
-        feeBps: candleData.funding?.takerFeeBps ?? feeBps,
+        feeBps: fb,
         enableFunding,
-        fundingRateBps: candleData.funding?.rateBps ?? fundingRateBps,
+        fundingRateBps: frb,
         result: btResult,
       };
       lastCommitInputRef.current = commitInput;
 
-      try {
-        const committed = await commitBacktestOnchain(commitInput);
-        if (runSeq !== runSeqRef.current) return;
-        setCommitStatus("success");
-        toast.success("Backtest committed on Monad", {
-          href: explorerTxUrl(committed.txHash),
-          hrefLabel: "View tx",
-        });
-        setCommitsRefreshKey((k) => k + 1);
-      } catch (e) {
-        if (runSeq !== runSeqRef.current) return;
-        setCommitStatus("error");
-        const message = e instanceof Error ? e.message : "Onchain commit failed";
-        toast.error(message, {
-          action: { label: "Retry", onClick: () => void retryCommit() },
-        });
-      }
+      const committed = await commitBacktestOnchain(commitInput);
+      if (runSeq !== runSeqRef.current) return;
+
+      setCommitStatus("success");
+      finishBacktestView(candleData, btResult, fb, frb);
+      saveCommitSnapshot(commitInput, lastPairMarketIdRef.current);
+      saveLocalCommit(wallet.address, {
+        commitId: committed.commitId,
+        txHash: committed.txHash,
+        strategy: commitInput.strategy,
+        market: commitInput.market,
+        pnlUsd: btResult.metrics.totalPnl,
+        committedAt: Math.floor(Date.now() / 1000),
+        configHash: committed.configHash,
+        resultHash: committed.resultHash,
+      });
+      toast.success("Backtest committed on Monad", {
+        href: explorerTxUrl(committed.txHash),
+        hrefLabel: "View tx",
+      });
+      setCommitsRefreshKey((k) => k + 1);
     } catch (e) {
       if (runSeq !== runSeqRef.current) return;
-      setCommitStatus("idle");
-      toast.error(e instanceof Error ? e.message : "Unknown error");
-      setResult(null);
+      const message = e instanceof Error ? e.message : "Unknown error";
+      if (reachedCommit) {
+        setCommitStatus("error");
+        toast.error(message, {
+          action: lastCommitInputRef.current
+            ? { label: "Retry", onClick: () => void retryCommit() }
+            : undefined,
+        });
+      } else {
+        setCommitStatus("idle");
+        toast.error(message);
+      }
     } finally {
       if (runSeq === runSeqRef.current) {
         runInFlightRef.current = false;
@@ -335,6 +411,7 @@ function BacktestAppInner() {
     }
   }, [
     wallet.address,
+    buildRunInput,
     marketId,
     pairMarketId,
     timeframe,
@@ -345,9 +422,8 @@ function BacktestAppInner() {
     leverage,
     stopLoss,
     takeProfit,
-    feeBps,
     enableFunding,
-    fundingRateBps,
+    finishBacktestView,
     toast,
     retryCommit,
   ]);
@@ -476,6 +552,7 @@ function BacktestAppInner() {
         commitStatus={commitStatus}
         onRetryCommit={retryCommit}
         commitsRefreshKey={commitsRefreshKey}
+        onCommitSelect={handleCommitSelect}
       />
     </div>
   );

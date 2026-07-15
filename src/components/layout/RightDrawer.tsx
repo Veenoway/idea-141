@@ -16,6 +16,7 @@ import {
   WalletPill,
 } from "@/components/ui";
 import { resolvePeriodMs, type PeriodConfig } from "@/lib/period";
+import type { StoredCommitSnapshot } from "@/lib/commit-snapshots";
 import type { CommitStatus } from "@/types/onchain";
 import type { StrategyParams, StrategyType, Timeframe } from "@/types";
 import { useMemo, useState } from "react";
@@ -63,6 +64,7 @@ interface Props {
   commitStatus: CommitStatus;
   onRetryCommit: () => void;
   commitsRefreshKey: number;
+  onCommitSelect: (snapshot: StoredCommitSnapshot) => void;
 }
 
 export function RightDrawer(props: Props) {
@@ -224,6 +226,7 @@ export function RightDrawer(props: Props) {
                     <NumInput label="Funding (bps)" value={props.fundingRateBps} onChange={props.onFundingRateBpsChange} step={0.01} />
                   </div>
                   <Toggle
+                    variant="accent"
                     checked={props.enableFunding}
                     onChange={props.onEnableFundingChange}
                     label="Simulate funding"
@@ -237,6 +240,7 @@ export function RightDrawer(props: Props) {
             <OnchainTab
               walletAddress={props.walletAddress as `0x${string}` | null}
               refreshKey={props.commitsRefreshKey}
+              onCommitSelect={props.onCommitSelect}
             />
           </div>
         )}

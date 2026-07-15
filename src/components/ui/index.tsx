@@ -438,11 +438,20 @@ export function Toggle({
   checked,
   onChange,
   label,
+  variant = "default",
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
+  variant?: "default" | "accent";
 }) {
+  const trackClass =
+    checked && variant === "accent"
+      ? "bg-[var(--bt-purple)] shadow-[var(--btn-metal-purple)]"
+      : checked
+        ? "bg-[var(--paper-7)] shadow-[var(--btn-metal)]"
+        : "bg-[var(--paper-5)] shadow-[var(--surface-metal-recessed)]";
+
   return (
     <label className="flex items-center gap-2.5 cursor-pointer group mt-2">
       <button
@@ -450,9 +459,7 @@ export function Toggle({
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative w-9 h-5 rounded-full transition-colors ${
-          checked ? "bg-[var(--paper-7)] shadow-[var(--btn-metal)]" : "bg-[var(--paper-5)] shadow-[var(--surface-metal-recessed)]"
-        }`}
+        className={`relative w-9 h-5 rounded-full transition-colors ${trackClass}`}
       >
         <span
           className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${

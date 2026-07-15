@@ -55,6 +55,25 @@ export function ChartPanel({
   const [replayModePhase, setReplayModePhase] = useState<"idle" | "enter" | "exit">("idle");
   const prevShowReplay = useRef(showReplay);
   const timersRef = useRef<number[]>([]);
+  const chartWrapRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef({ w: 0, h: 0 });
+
+  useEffect(() => {
+    if (!showReplay || !replayPlaying) return;
+
+    viewportRef.current = { w: window.innerWidth, h: window.innerHeight };
+
+    const onResize = () => {
+      const dw = Math.abs(window.innerWidth - viewportRef.current.w);
+      const dh = Math.abs(window.innerHeight - viewportRef.current.h);
+      if (dw < 24 && dh < 24) return;
+      viewportRef.current = { w: window.innerWidth, h: window.innerHeight };
+      onReplayPlayingChange(false);
+    };
+
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [showReplay, replayPlaying, onReplayPlayingChange]);
 
   const clearTimers = () => {
     for (const id of timersRef.current) window.clearTimeout(id);
@@ -134,6 +153,7 @@ export function ChartPanel({
 
         {candles.length > 0 ? (
           <div
+            ref={chartWrapRef}
             className={`flex flex-col gap-2 bt-replay-chart-wrap ${
               replayModePhase === "enter" ? "bt-replay-chart-wrap--enter" : ""
             } ${replayModePhase === "exit" ? "bt-replay-chart-wrap--exit" : ""} ${

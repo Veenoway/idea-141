@@ -69,13 +69,13 @@ export async function commitBacktestOnchain(
     ],
   });
 
-  try {
-    await publicClient.waitForTransactionReceipt({
-      hash: txHash,
-      timeout: 120_000,
-    });
-  } catch {
-    // Tx was already submitted — receipt polling can fail without invalidating the send.
+  const receipt = await publicClient.waitForTransactionReceipt({
+    hash: txHash,
+    timeout: 120_000,
+  });
+
+  if (receipt.status !== "success") {
+    throw new Error("Transaction failed on-chain.");
   }
 
   const commitId = await publicClient.readContract({
