@@ -44,13 +44,13 @@ function checkStopTakeProfit(
   const tp = takeProfitPercent / 100;
 
   if (pos.side === "long") {
-    const slPrice = pos.entryPrice * (1 - sl / config.leverage);
-    const tpPrice = pos.entryPrice * (1 + tp / config.leverage);
+    const slPrice = pos.entryPrice * (1 - sl);
+    const tpPrice = pos.entryPrice * (1 + tp);
     if (candle.low <= slPrice) return "stop_loss";
     if (candle.high >= tpPrice) return "take_profit";
   } else {
-    const slPrice = pos.entryPrice * (1 + sl / config.leverage);
-    const tpPrice = pos.entryPrice * (1 - tp / config.leverage);
+    const slPrice = pos.entryPrice * (1 + sl);
+    const tpPrice = pos.entryPrice * (1 - tp);
     if (candle.high >= slPrice) return "stop_loss";
     if (candle.low <= tpPrice) return "take_profit";
   }
@@ -64,12 +64,12 @@ function exitPriceForSlTp(
 ): number {
   if (exitReason === "stop_loss") {
     return pos.side === "long"
-      ? pos.entryPrice * (1 - config.stopLossPercent / 100 / config.leverage)
-      : pos.entryPrice * (1 + config.stopLossPercent / 100 / config.leverage);
+      ? pos.entryPrice * (1 - config.stopLossPercent / 100)
+      : pos.entryPrice * (1 + config.stopLossPercent / 100);
   }
   return pos.side === "long"
-    ? pos.entryPrice * (1 + config.takeProfitPercent / 100 / config.leverage)
-    : pos.entryPrice * (1 - config.takeProfitPercent / 100 / config.leverage);
+    ? pos.entryPrice * (1 + config.takeProfitPercent / 100)
+    : pos.entryPrice * (1 - config.takeProfitPercent / 100);
 }
 
 export function runBacktest(
@@ -126,10 +126,9 @@ export function runBacktest(
     if (!state.openPos) return;
     const exitPrice = exitOverride ?? candle.close;
     const gross = unrealizedPnl(state.openPos.side, state.openPos.entryPrice, exitPrice, state.openPos.size);
-    const exitFee = fee(state.openPos.size * exitPrice, config.takerFeeBps);
     const entryFee = fee(state.openPos.size * state.openPos.entryPrice, config.takerFeeBps);
-    const pnl = gross - entryFee - exitFee;
-    cash += state.openPos.margin + pnl;
+    const pnl = gross - entryFee;
+    cash += state.openPos.margin + gross;
 
     trades.push({
       id: tradeId++,

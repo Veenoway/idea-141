@@ -58,13 +58,13 @@ function checkPairStopTakeProfit(
   const tp = config.takeProfitPercent / 100;
 
   if (pos.side === "long") {
-    const slRatio = pos.entryRatio * (1 - sl / config.leverage);
-    const tpRatio = pos.entryRatio * (1 + tp / config.leverage);
+    const slRatio = pos.entryRatio * (1 - sl);
+    const tpRatio = pos.entryRatio * (1 + tp);
     if (ratioCandle.low <= slRatio) return "stop_loss";
     if (ratioCandle.high >= tpRatio) return "take_profit";
   } else {
-    const slRatio = pos.entryRatio * (1 + sl / config.leverage);
-    const tpRatio = pos.entryRatio * (1 - tp / config.leverage);
+    const slRatio = pos.entryRatio * (1 + sl);
+    const tpRatio = pos.entryRatio * (1 - tp);
     if (ratioCandle.high >= slRatio) return "stop_loss";
     if (ratioCandle.low <= tpRatio) return "take_profit";
   }
@@ -80,12 +80,12 @@ function exitRatioForSlTp(
   const tp = config.takeProfitPercent / 100;
   if (exitReason === "stop_loss") {
     return pos.side === "long"
-      ? pos.entryRatio * (1 - sl / config.leverage)
-      : pos.entryRatio * (1 + sl / config.leverage);
+      ? pos.entryRatio * (1 - sl)
+      : pos.entryRatio * (1 + sl);
   }
   return pos.side === "long"
-    ? pos.entryRatio * (1 + tp / config.leverage)
-    : pos.entryRatio * (1 - tp / config.leverage);
+    ? pos.entryRatio * (1 + tp)
+    : pos.entryRatio * (1 - tp);
 }
 
 export function runPairBacktest(input: PairBacktestInput): BacktestResult {
@@ -122,11 +122,8 @@ export function runPairBacktest(input: PairBacktestInput): BacktestResult {
     const entryFee =
       fee(openPos.baseSize * openPos.entryBasePrice, config.takerFeeBps) +
       fee(openPos.quoteSize * openPos.entryQuotePrice, config.takerFeeBps);
-    const exitFee =
-      fee(openPos.baseSize * exitBase, config.takerFeeBps) +
-      fee(openPos.quoteSize * exitQuote, config.takerFeeBps);
-    const pnl = gross - entryFee - exitFee;
-    cash += openPos.margin + pnl;
+    const pnl = gross - entryFee;
+    cash += openPos.margin + gross;
 
     trades.push({
       id: tradeId++,
