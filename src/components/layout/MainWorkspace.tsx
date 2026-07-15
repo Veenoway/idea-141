@@ -13,6 +13,7 @@ type View = "landing" | "results";
 interface Props {
   result: BacktestResult | null;
   candles: Candle[];
+  chartSeriesKey?: string;
   strategy: StrategyType;
   params: StrategyParams;
   sliceEnd?: number;
@@ -121,6 +122,7 @@ export function MainWorkspace(props: Props) {
           <RevealPiece delay={0}>
             <ChartPanel
               candles={props.candles}
+              chartSeriesKey={props.chartSeriesKey}
               result={result}
               strategy={props.strategy}
               params={props.params}

@@ -19,6 +19,7 @@ interface Props {
   params: StrategyParams;
   sliceEnd?: number;
   sliceStart?: number;
+  chartSeriesKey?: string;
   showReplay: boolean;
   replayIndex: number;
   replayPlaying: boolean;
@@ -39,6 +40,7 @@ export function ChartPanel({
   params,
   sliceEnd,
   sliceStart = 0,
+  chartSeriesKey,
   showReplay,
   replayIndex,
   replayPlaying,
@@ -162,12 +164,14 @@ export function ChartPanel({
           >
             <div className="h-[520px] shrink-0 bt-chart-well">
               <CandlestickChart
+                key={chartSeriesKey ?? "default"}
                 candles={candles}
                 result={result}
                 strategy={strategy}
                 params={params}
                 sliceEnd={sliceEnd}
                 sliceStart={sliceStart}
+                seriesKey={chartSeriesKey}
               />
             </div>
             {strategy === "rsi" && (

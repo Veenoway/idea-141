@@ -487,6 +487,7 @@ function BacktestAppInner() {
           <MainWorkspace
             result={result}
             candles={candles}
+            chartSeriesKey={data?.market}
             strategy={strategy}
             params={params}
             sliceEnd={sliceEnd}

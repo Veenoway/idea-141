@@ -40,6 +40,8 @@ interface Props {
   params: StrategyParams;
   sliceEnd?: number;
   sliceStart?: number;
+  /** Changes when the underlying market/dataset changes (e.g. ETH → BTC). */
+  seriesKey?: string;
 }
 
 function scrollToEnd(chart: IChartApi, len: number, replay: boolean) {
@@ -51,6 +53,19 @@ function scrollToEnd(chart: IChartApi, len: number, replay: boolean) {
   }
 }
 
+function resetPriceAutoscale(chart: IChartApi, series?: ISeriesApi<"Candlestick">) {
+  chart.priceScale("right").applyOptions({ autoScale: true });
+  series?.priceScale().applyOptions({ autoScale: true });
+}
+
+function candleDatasetKey(candles: Candle[], seriesKey?: string) {
+  if (seriesKey) return seriesKey;
+  if (candles.length === 0) return "";
+  const first = candles[0];
+  const last = candles[candles.length - 1];
+  return `${first.time}:${first.open}:${last.time}:${candles.length}`;
+}
+
 export function CandlestickChart({
   candles,
   result,
@@ -58,12 +73,14 @@ export function CandlestickChart({
   params,
   sliceEnd,
   sliceStart = 0,
+  seriesKey,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const overlayRef = useRef<ISeriesApi<"Line">[]>([]);
   const markersRef = useRef<{ setMarkers: (m: SeriesMarker<Time>[]) => void } | null>(null);
+  const datasetKeyRef = useRef("");
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -196,8 +213,24 @@ export function CandlestickChart({
       markersRef.current?.setMarkers([]);
     }
 
-    scrollToEnd(chart, ohlc.length, sliceEnd != null);
-  }, [candles, result, strategy, params, sliceEnd, sliceStart]);
+    const nextDatasetKey = candleDatasetKey(candles, seriesKey);
+    const datasetChanged = nextDatasetKey !== datasetKeyRef.current;
+    datasetKeyRef.current = nextDatasetKey;
+
+    const finalizeView = () => {
+      const liveChart = chartRef.current;
+      const liveSeries = candleSeriesRef.current;
+      if (!liveChart || !liveSeries) return;
+      if (datasetChanged) resetPriceAutoscale(liveChart, liveSeries);
+      scrollToEnd(liveChart, ohlc.length, sliceEnd != null);
+    };
+
+    if (datasetChanged) {
+      requestAnimationFrame(finalizeView);
+    } else {
+      finalizeView();
+    }
+  }, [candles, result, strategy, params, sliceEnd, sliceStart, seriesKey]);
 
   return <div ref={containerRef} className="w-full h-full" />;
 }
