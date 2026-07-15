@@ -108,12 +108,7 @@ export function MainWorkspace(props: Props) {
             landingPhase === "exit" ? "bt-workspace-layer--exit" : ""
           } ${landingPhase === "enter" ? "bt-workspace-layer--enter" : ""}`}
         >
-          <LandingHero
-            walletConnected={props.walletConnected}
-            loading={props.loading}
-            onConnectWallet={props.onConnectWallet}
-            onRun={props.onRun}
-          />
+          <LandingHero />
         </div>
       )}
 

@@ -1,14 +1,6 @@
 "use client";
 
 import { STRATEGY_META } from "@/lib/constants";
-import { Button } from "@/components/ui";
-
-interface Props {
-  walletConnected: boolean;
-  loading: boolean;
-  onConnectWallet: () => void;
-  onRun: () => void;
-}
 
 const STEPS = [
   {
@@ -40,12 +32,7 @@ const FEATURES = [
   "Onchain attestation",
 ] as const;
 
-export function LandingHero({
-  walletConnected,
-  loading,
-  onConnectWallet,
-  onRun,
-}: Props) {
+export function LandingHero() {
   return (
     <section className="bt-main-panel flex-1 min-h-0 flex flex-col justify-center overflow-y-auto perpl-scroll p-6 md:p-8">
       <div className="max-w-3xl mx-auto w-full flex flex-col items-center text-center">
@@ -109,27 +96,9 @@ export function LandingHero({
           </div>
         </div>
 
-        <div className="w-full max-w-sm mt-8 space-y-2.5">
-          {!walletConnected ? (
-            <>
-              <Button onClick={onConnectWallet} disabled={loading}>
-                Connect Wallet to Start
-              </Button>
-              <p className="text-[10px] text-[var(--bt-muted)] leading-relaxed">
-                Configure everything in the drawer on the right, then run your first backtest.
-              </p>
-            </>
-          ) : (
-            <>
-              <Button onClick={onRun} disabled={loading}>
-                {loading ? "Running…" : "Run Your First Backtest"}
-              </Button>
-              <p className="text-[10px] text-[var(--bt-muted)] leading-relaxed">
-                Wallet connected — tweak strategy & risk in the drawer, then hit run.
-              </p>
-            </>
-          )}
-        </div>
+        <p className="text-[10px] text-[var(--bt-muted)] leading-relaxed mt-8 max-w-sm">
+          Configure strategy and risk in the drawer on the right, then run from there.
+        </p>
       </div>
     </section>
   );

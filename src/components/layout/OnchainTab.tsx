@@ -4,19 +4,13 @@ import { explorerTxUrl } from "@/lib/chain";
 import { shortHash } from "@/lib/commit-hash";
 import { loadLocalCommits, localTxHashes } from "@/lib/commit-index";
 import { loadCommitSnapshot, type StoredCommitSnapshot } from "@/lib/commit-snapshots";
-import type { WalletCommit } from "@/lib/onchain-history";
+import { mergeCommits, type WalletCommit } from "@/lib/onchain-history";
 import { useToast } from "@/hooks/useToast";
 import { Badge } from "@/components/ui";
 import type { Address } from "viem";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-function mergeCommitLists(local: WalletCommit[], remote: WalletCommit[]): WalletCommit[] {
-  const byKey = new Map<string, WalletCommit>();
-  for (const c of [...local, ...remote]) {
-    byKey.set(`${c.commitId}-${c.txHash}`, c);
-  }
-  return [...byKey.values()].sort((a, b) => Number(BigInt(b.commitId) - BigInt(a.commitId)));
-}
+const ZERO_TX = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 interface Props {
   walletAddress: Address | null;
@@ -27,50 +21,114 @@ interface Props {
 export function OnchainTab({ walletAddress, refreshKey = 0, onCommitSelect }: Props) {
   const toast = useToast();
   const [commits, setCommits] = useState<WalletCommit[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [loadProgress, setLoadProgress] = useState<{ done: number; total: number } | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const commitsCountRef = useRef(0);
-  commitsCountRef.current = commits.length;
+  const appendCommit = useCallback((commit: WalletCommit) => {
+    setCommits((prev) => mergeCommits(prev, [commit]));
+  }, []);
 
-  const load = useCallback(
+  const syncCommits = useCallback(
     async (force = false) => {
       if (!walletAddress) {
         setCommits([]);
         return;
       }
 
-      const local = loadLocalCommits(walletAddress);
-      const hasCached = commitsCountRef.current > 0 || local.length > 0;
-      if (hasCached) setRefreshing(true);
-      else setLoading(true);
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-      if (local.length > 0 && commitsCountRef.current === 0) {
-        setCommits(local);
+      const local = loadLocalCommits(walletAddress);
+      if (local.length > 0) {
+        setCommits((prev) => (force ? mergeCommits([], local) : mergeCommits(prev, local)));
       }
+
+      setSyncing(true);
+      setLoadProgress(null);
 
       try {
         const txParam = localTxHashes(walletAddress).join(",");
-        const url =
-          `/api/onchain/commits?wallet=${walletAddress}` +
-          (force ? "&refresh=1" : "") +
+        const sourcesUrl =
+          `/api/onchain/commits/sources?wallet=${walletAddress}` +
           (txParam ? `&txHashes=${encodeURIComponent(txParam)}` : "");
-        const res = await fetch(url);
-        const data = (await res.json()) as { commits?: WalletCommit[]; error?: string };
-        if (!res.ok) throw new Error(data.error ?? "Failed to load commits");
-        setCommits(mergeCommitLists(local, data.commits ?? []));
+
+        const sourcesRes = await fetch(sourcesUrl, { signal: controller.signal });
+        const sourcesData = (await sourcesRes.json()) as {
+          commitIds?: string[];
+          txHashes?: string[];
+          error?: string;
+        };
+        if (!sourcesRes.ok) throw new Error(sourcesData.error ?? "Failed to list commits");
+
+        const commitIds = sourcesData.commitIds ?? [];
+        const txHashes = sourcesData.txHashes ?? [];
+        const loadedIds = new Set(local.map((c) => c.commitId));
+        const loadedTx = new Set(local.map((c) => c.txHash.toLowerCase()));
+
+        const txsToFetch = txHashes.filter((h) => !loadedTx.has(h.toLowerCase()));
+        const idsToFetch = commitIds.filter((id) => !loadedIds.has(id));
+        const total = txsToFetch.length + idsToFetch.length;
+        let done = 0;
+
+        if (total > 0) setLoadProgress({ done: 0, total });
+
+        for (const txHash of txsToFetch) {
+          if (controller.signal.aborted) return;
+          try {
+            const res = await fetch(
+              `/api/onchain/commits/one?wallet=${walletAddress}&txHash=${txHash}`,
+              { signal: controller.signal }
+            );
+            const data = (await res.json()) as { commit?: WalletCommit | null };
+            if (data.commit) {
+              loadedIds.add(data.commit.commitId);
+              appendCommit(data.commit);
+            }
+          } catch {
+            /* skip failed tx */
+          }
+          done++;
+          setLoadProgress({ done, total });
+        }
+
+        for (const commitId of idsToFetch) {
+          if (controller.signal.aborted) return;
+          if (loadedIds.has(commitId)) {
+            done++;
+            setLoadProgress({ done, total });
+            continue;
+          }
+          try {
+            const res = await fetch(
+              `/api/onchain/commits/record?wallet=${walletAddress}&commitId=${commitId}`,
+              { signal: controller.signal }
+            );
+            const data = (await res.json()) as { commit?: WalletCommit | null };
+            if (data.commit) {
+              loadedIds.add(data.commit.commitId);
+              appendCommit(data.commit);
+            }
+          } catch {
+            /* skip */
+          }
+          done++;
+          setLoadProgress({ done, total });
+        }
       } catch (e) {
-        if (local.length > 0) {
-          setCommits(local);
-        } else {
+        if (controller.signal.aborted) return;
+        if (local.length === 0) {
           toast.error(e instanceof Error ? e.message : "Failed to load commits");
         }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (!controller.signal.aborted) {
+          setSyncing(false);
+          setLoadProgress(null);
+        }
       }
     },
-    [walletAddress, toast]
+    [walletAddress, toast, appendCommit]
   );
 
   useEffect(() => {
@@ -80,7 +138,8 @@ export function OnchainTab({ walletAddress, refreshKey = 0, onCommitSelect }: Pr
     }
     const local = loadLocalCommits(walletAddress);
     if (local.length > 0) setCommits(local);
-    void load(false);
+    void syncCommits(false);
+    return () => abortRef.current?.abort();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletAddress, refreshKey]);
 
@@ -104,8 +163,6 @@ export function OnchainTab({ walletAddress, refreshKey = 0, onCommitSelect }: Pr
     );
   }
 
-  const initialLoading = loading && commits.length === 0;
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -114,31 +171,29 @@ export function OnchainTab({ walletAddress, refreshKey = 0, onCommitSelect }: Pr
         </p>
         <button
           type="button"
-          onClick={() => load(true)}
-          disabled={loading || refreshing}
+          onClick={() => syncCommits(true)}
+          disabled={syncing}
           className="text-[10px] text-[var(--bt-accent)] hover:underline disabled:opacity-40"
         >
-          {refreshing ? "Syncing…" : loading ? "Loading…" : "Refresh"}
+          {syncing ? "Syncing…" : "Refresh"}
         </button>
       </div>
 
-      {initialLoading ? (
-        <div className="space-y-2">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="bt-panel rounded-[var(--bt-radius-sm)] px-3 py-2.5 h-[88px] animate-pulse bg-white/[0.02]"
-            />
-          ))}
-        </div>
-      ) : commits.length === 0 ? (
+      {commits.length === 0 && syncing && !loadProgress ? (
+        <p className="text-xs text-[var(--bt-muted)]">Discovering onchain commits…</p>
+      ) : commits.length === 0 && !syncing ? (
         <p className="text-xs text-[var(--bt-muted)]">No commits yet. Run a backtest to commit onchain.</p>
       ) : (
         <div className="relative space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto perpl-scroll pr-0.5">
-          {refreshing && (
-            <div className="sticky top-0 z-10 flex items-center gap-2 px-2 py-1 rounded-[var(--bt-radius-sm)] bg-[var(--paper-3)]/90 text-[10px] text-[var(--bt-muted)] backdrop-blur-sm">
-              <span className="inline-block w-3 h-3 border-2 border-[var(--bt-purple)] border-t-transparent rounded-full animate-spin" />
-              Syncing commits…
+          {loadProgress && (
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-2 px-2 py-1 rounded-[var(--bt-radius-sm)] bg-[var(--paper-3)]/90 text-[10px] text-[var(--bt-muted)] backdrop-blur-sm">
+              <span className="flex items-center gap-2">
+                <span className="inline-block w-3 h-3 border-2 border-[var(--bt-purple)] border-t-transparent rounded-full animate-spin" />
+                Loading commits…
+              </span>
+              <span className="tabular-nums">
+                {loadProgress.done}/{loadProgress.total}
+              </span>
             </div>
           )}
           {commits.map((c) => (
@@ -156,6 +211,8 @@ export function OnchainTab({ walletAddress, refreshKey = 0, onCommitSelect }: Pr
 
 function CommitRow({ commit, onSelect }: { commit: WalletCommit; onSelect: () => void }) {
   const positive = commit.pnlUsd >= 0;
+  const hasTx = commit.txHash.toLowerCase() !== ZERO_TX;
+
   return (
     <button
       type="button"
@@ -164,9 +221,13 @@ function CommitRow({ commit, onSelect }: { commit: WalletCommit; onSelect: () =>
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-white">#{commit.commitId}</span>
-        <Badge tone={positive ? "green" : "red"}>
-          {positive ? "+" : ""}${commit.pnlUsd.toFixed(2)}
-        </Badge>
+        {commit.pnlUsd !== 0 || commit.strategy !== "—" ? (
+          <Badge tone={positive ? "green" : "red"}>
+            {positive ? "+" : ""}${commit.pnlUsd.toFixed(2)}
+          </Badge>
+        ) : (
+          <Badge tone="muted">onchain</Badge>
+        )}
       </div>
       <p className="text-[11px] text-[var(--bt-muted)]">
         {commit.strategy} · {commit.market}
@@ -180,15 +241,17 @@ function CommitRow({ commit, onSelect }: { commit: WalletCommit; onSelect: () =>
         {shortHash(commit.configHash)} → {shortHash(commit.resultHash)}
       </p>
       <p className="text-[10px] text-[var(--bt-accent)]">Re-run backtest →</p>
-      <a
-        href={explorerTxUrl(commit.txHash)}
-        target="_blank"
-        rel="noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        className="text-[10px] text-[var(--bt-muted)] hover:text-[var(--bt-accent)] hover:underline inline-block"
-      >
-        View transaction ↗
-      </a>
+      {hasTx && (
+        <a
+          href={explorerTxUrl(commit.txHash)}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[10px] text-[var(--bt-muted)] hover:text-[var(--bt-accent)] hover:underline inline-block"
+        >
+          View transaction ↗
+        </a>
+      )}
     </button>
   );
 }

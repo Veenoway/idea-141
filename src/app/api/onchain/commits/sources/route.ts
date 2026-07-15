@@ -1,4 +1,4 @@
-import { fetchWalletCommits, refreshWalletCommits } from "@/lib/onchain-history";
+import { listWalletCommitSources } from "@/lib/onchain-history";
 import { isAddress, type Hash } from "viem";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -12,7 +12,6 @@ function parseTxHashes(raw: string | null): Hash[] {
 
 export async function GET(req: NextRequest) {
   const wallet = req.nextUrl.searchParams.get("wallet");
-  const force = req.nextUrl.searchParams.get("refresh") === "1";
   const knownTxHashes = parseTxHashes(req.nextUrl.searchParams.get("txHashes"));
 
   if (!wallet || !isAddress(wallet)) {
@@ -20,20 +19,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const commits = force
-      ? await refreshWalletCommits(wallet, knownTxHashes)
-      : await fetchWalletCommits(wallet, knownTxHashes);
-    return NextResponse.json(
-      { commits },
-      {
-        headers: {
-          "Cache-Control": "private, s-maxage=30, stale-while-revalidate=60",
-        },
-      }
-    );
+    const sources = await listWalletCommitSources(wallet, knownTxHashes);
+    return NextResponse.json(sources, {
+      headers: { "Cache-Control": "private, s-maxage=30" },
+    });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to fetch onchain history";
+    const message = error instanceof Error ? error.message : "Failed to list commit sources";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
