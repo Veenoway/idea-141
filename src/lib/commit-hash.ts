@@ -2,6 +2,22 @@ import { encodeAbiParameters, getAddress, keccak256, type Address } from "viem";
 import type { BacktestResult, StrategyParams, StrategyType, Timeframe } from "@/types";
 import type { PeriodConfig } from "@/lib/period";
 
+function toUintScaled(value: number): bigint {
+  const scaled = Math.round(value * 100);
+  if (scaled < 0) {
+    throw new Error(`Value ${value} cannot be negative for unsigned encoding.`);
+  }
+  return BigInt(scaled);
+}
+
+function toSignedScaled(value: number): bigint {
+  return BigInt(Math.round(value * 100));
+}
+
+export function toSignedUsdCents(value: number): bigint {
+  return BigInt(Math.round(value * 100));
+}
+
 export interface CommitConfigInput {
   marketId: number;
   market: string;
@@ -39,7 +55,7 @@ export function hashBacktestConfig(input: CommitConfigInput): `0x${string}` {
         { type: "uint256" },
         { type: "uint256" },
         { type: "bool" },
-        { type: "uint256" },
+        { type: "int256" },
       ],
       [
         BigInt(input.marketId),
@@ -48,13 +64,13 @@ export function hashBacktestConfig(input: CommitConfigInput): `0x${string}` {
         periodKey,
         input.strategy,
         JSON.stringify(input.params),
-        BigInt(Math.round(input.capital * 100)),
+        toUintScaled(input.capital),
         BigInt(input.leverage),
-        BigInt(Math.round(input.stopLoss * 100)),
-        BigInt(Math.round(input.takeProfit * 100)),
-        BigInt(Math.round(input.feeBps * 100)),
+        toUintScaled(input.stopLoss),
+        toUintScaled(input.takeProfit),
+        toUintScaled(input.feeBps),
         input.enableFunding,
-        BigInt(Math.round(input.fundingRateBps * 100)),
+        toSignedScaled(input.fundingRateBps),
       ]
     )
   );
@@ -78,20 +94,20 @@ export function hashBacktestResult(result: BacktestResult): `0x${string}` {
         { type: "int256" },
       ],
       [
-        BigInt(Math.round(m.totalPnl * 100)),
-        BigInt(Math.round(m.finalCapital * 100)),
+        toSignedScaled(m.totalPnl),
+        toSignedScaled(m.finalCapital),
         BigInt(m.totalTrades),
-        BigInt(Math.round(m.winRate * 100)),
-        BigInt(Math.round(m.maxDrawdownPercent * 100)),
+        toUintScaled(m.winRate),
+        toUintScaled(m.maxDrawdownPercent),
         BigInt(Math.max(0, profitFactorScaled)),
-        BigInt(Math.round(m.totalFunding * 100)),
+        toSignedScaled(m.totalFunding),
       ]
     )
   );
 }
 
 export function pnlToUsdCents(pnl: number): bigint {
-  return BigInt(Math.round(pnl * 100));
+  return toSignedUsdCents(pnl);
 }
 
 export function shortHash(hash: string) {
